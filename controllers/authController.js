@@ -3,8 +3,7 @@ const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 require('dotenv').config(); 
-const verifyEmail = require('../utils/verifyEmail');
-
+const jwt = require('jsonwebtoken');
 // const transporter = nodemailer.createTransport({
 //   service: 'gmail',
 //   auth: {
@@ -22,34 +21,56 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS     // app password
   }
 });
-console.log("📧 Sending mail using:", process.env.EMAIL_USER)
-
+console.log("Sending mail using:", process.env.EMAIL_USER)
 exports.signup = async (req, res) => {
   const { fullName, userName, email, phoneNumber, password, confirmPassword } = req.body;
 
+  const errors = {};
+
+  if (!fullName) errors.fullName = 'Full Name is required';
+
+  if (!userName) {
+    errors.userName = 'Username is required';
+  } else if (!/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{3,15}$/.test(userName)) {
+    errors.userName = 'Username must be 3-15 characters, contain at least one letter and one number, with no spaces or special characters';
+  }
+  if (!email) {
+    errors.email = 'Email is required';
+  } else if (!/^[a-zA-Z]+\d*@gmail\.com$/.test(email)) {
+    errors.email = 'Only valid Gmail addresses allowed (e.g. name123@gmail.com)';
+  }
+
+  if (!phoneNumber) {
+    errors.phoneNumber = 'Phone Number is required';
+  } else if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
+    errors.phoneNumber = 'Invalid Indian phone number';
+  }
+
+  if (!password) {
+    errors.password = 'Password is required';
+  } else if (!/(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}/.test(password)) {
+    errors.password = 'Password must be at least 8 characters, include a number, a letter, and a special character';
+  }
+
+  if (!confirmPassword) {
+    errors.confirmPassword = 'Confirm Password is required';
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = 'Passwords do not match';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
   try {
-    // Check if all required fields are present
-    if (!fullName || !userName || !email || !phoneNumber || !password || !confirmPassword) {
-      return res.status(400).json({ msg: 'Please fill in all required fields' });
-    }
-
-    // Check if passwords match
-    if (password !== confirmPassword) {
-      return res.status(400).json({ msg: 'Passwords do not match' });
-    }
-
-    // Check if email already exists
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ msg: 'Email already in use' });
+    if (existing) return res.status(400).json({ errors: { email: 'Email already in use' } });
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Create user
     const user = await User.create({
       fullName,
       userName,
@@ -60,62 +81,92 @@ exports.signup = async (req, res) => {
       otpExpires
     });
 
-    // Send OTP Email
     await transporter.sendMail({
       from: `"ShopMyStore" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: `ShopMyStore Verification Code`,
-      text: `Your OTP is: ${otp}. It will expire in 10 minutes.`,
+      subject: `ShopMyStore OTP Verification Code`,
+      text: `${otp} is your ShopMyStore verification code. This code will expire in 10 minutes.`,
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2 style="color: #333;">Your OTP is: <strong style="font-size: 24px;">${otp}</strong></h2>
-          <p>This OTP is valid for 10 minutes.</p>
+          <h1 style="color:rgb(245, 71, 88);">ShopMyStore</h1>
+          <h2>Your OTP is: <strong style="font-size: 24px;">${otp}</strong></h2>
+          <p>This OTP is valid for <strong>10 minutes</strong>.</p>
           <p>If you didn’t request this, you can safely ignore this email.</p>
+          <br/>
+          <p style="font-size: 14px; color: #888;">Thanks,</p>
+          <p style="font-size: 14px; color: #888;">The ShopMyStore Team</p>
         </div>
       `
     });
+    
 
-    // Respond success
     res.status(201).json({ msg: 'User created. OTP sent.', userId: user._id });
 
   } catch (err) {
-    console.error("❌ Signup error:", err);
+    console.error("Signup error:", err);
     res.status(500).json({ msg: 'Signup failed', error: err.message });
   }
 };
 
-
-
-
-
-const jwt = require('jsonwebtoken');
-
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  console.log("🔐 Login attempt:", email);
+  console.log("Login attempt:", email);
+
+  const errors = {};
+
+  // Validate email format
+  if (!email) {
+    errors.email = 'Email is required';
+  } else if (!/^[a-zA-Z0-9._%+-]+[0-9]*@gmail\.com$/.test(email)) {
+    errors.email = 'Invalid email format. Must be a valid Gmail address';
+  }
+
+  // Validate password format
+  if (!password) {
+    errors.password = 'Password is required';
+  } else if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{6,}$/.test(password)) {
+    errors.password = 'Password must contain a letter, number, special character and be at least 6 characters';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
 
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ msg: 'User not found' });
+    if (!user) {
+      return res.status(400).json({ errors: { email: 'Email is incorrect. Please check your email' } });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ msg: 'Invalid credentials' });
+    if (!isMatch) {
+      return res.status(401).json({ errors: { password: 'Password is incorrect. Please check your password' } });
+    }
 
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' } // Token valid for 1 hour
+      { expiresIn: '1h' }
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       msg: 'Login successful',
-      token
+      token,
     });
+
   } catch (err) {
-    console.error("❌ Login error:", err);
+    console.error("Login error:", err);
     res.status(500).json({ msg: 'Login failed', error: err.message });
   }
 };
+
+
+
+
+
+
+
+
 
 
 // exports.sendOtp = async (req, res) => {
@@ -175,30 +226,24 @@ exports.sendOtp = (req, res) => {
 
   
 exports.verifyOtp = async (req, res) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    if (!otp) {
+      return res.status(400).json({ errors: { otp: 'OTP is required' } });
+    }
+
+    const user = await User.findOne({ otp });
 
     if (!user) {
-      return res.status(400).json({ msg: 'User not found' });
+      return res.status(400).json({ errors: { otp: 'Invalid OTP or it may have already been used' } });
     }
 
-    if (!user.otp || !user.otpExpires) {
-      return res.status(400).json({ msg: 'OTP was not requested or already verified' });
+    if (!user.otpExpires || user.otpExpires < new Date()) {
+      return res.status(400).json({ errors: { otp: 'OTP has expired. Please request a new one' } });
     }
 
-    // Check if OTP expired
-    if (user.otpExpires < new Date()) {
-      return res.status(400).json({ msg: 'OTP expired' });
-    }
-
-    // Check if OTP matches
-    if (user.otp !== otp) {
-      return res.status(400).json({ msg: 'Invalid OTP' });
-    }
-
-    // ✅ OTP is valid
+    // Clear OTP fields
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
