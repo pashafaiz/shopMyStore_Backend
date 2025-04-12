@@ -431,6 +431,7 @@ exports.signup = async (req, res) => {
 
 
 // =================== OTP VERIFY ===================
+// =================== OTP VERIFY ===================
 exports.verifyOtp = async (req, res) => {
   const { otp } = req.body;
 
@@ -444,6 +445,7 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ errors: { otp: 'OTP has expired. Please sign up again' } });
     }
 
+    // Create user from pending
     const user = await User.create({
       fullName: pendingUser.fullName,
       userName: pendingUser.userName,
@@ -452,25 +454,35 @@ exports.verifyOtp = async (req, res) => {
       password: pendingUser.password
     });
 
+    // Delete pending user entry
     await PendingUser.deleteOne({ email: pendingUser.email });
 
-    // res.status(201).json({ msg: 'OTP verified and user created successfully', userId: user._id });
+    // 🔑 Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // ✅ Return user + token
     res.status(201).json({
       msg: 'OTP verified and user created successfully',
+      token,
       user: {
         id: user._id,
         fullName: user.fullName,
         userName: user.userName,
         email: user.email,
-        phoneNumber: user.phoneNumber,
-        password:user.password
+        phoneNumber: user.phoneNumber
       }
     });
+
   } catch (err) {
     console.error("❌ Error in verifyOtp:", err);
     res.status(500).json({ msg: 'Failed to verify OTP', error: err.message });
   }
 };
+
 
 // =================== RESEND OTP ===================
 exports.resendOtp = async (req, res) => {
