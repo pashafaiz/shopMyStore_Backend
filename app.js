@@ -19,22 +19,26 @@
 
 // module.exports = app;
 
-
 const express = require('express');
 const app = express();
 const path = require('path');
 const cors = require('cors');
 
-// Load environment variables
 require('dotenv').config();
 
-// Trust Render proxy headers
 app.set('trust proxy', true);
 
+// CORS configuration
 app.use(cors({
-    origin: '*',
-    credentials: true,
-  }));
+  origin: [
+    'http://localhost:3000',
+    'http://192.168.1.65:8081',
+    'http://10.0.2.2:8081',
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 const authRoutes = require('./routes/authRoutes');
 const reelRoutes = require('./routes/reelRoutes');
@@ -44,5 +48,15 @@ app.use('/Uploads', express.static(path.join(__dirname, 'Uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', reelRoutes);
+
+app.get('/api/ping', (req, res) => {
+  console.log('Ping request received:', new Date().toISOString());
+  res.status(200).json({ msg: 'Server is alive' });
+});
+
+// Health check for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK' });
+});
 
 module.exports = app;
