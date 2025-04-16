@@ -68,13 +68,8 @@
 
 
 const Reel = require('../models/Reel');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
 const path = require('path');
-
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-ffmpeg.setFfprobePath(ffprobeInstaller.path);
+const fs = require('fs');
 
 exports.uploadReel = async (req, res) => {
   console.log('Request Body:', req.body);
@@ -90,35 +85,27 @@ exports.uploadReel = async (req, res) => {
   const filePath = path.resolve(req.file.path).replace(/\\/g, '/');
 
   try {
-    console.log('FFMPEG PATH:', ffmpegInstaller.path);
-    console.log('File Path:', filePath);
+    // Skip FFmpeg to avoid resource issues on Render free tier
+    const relativePath = path.relative(path.join(__dirname, '../Uploads'), filePath).replace(/\\/g, '/');
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const videoUrl = `${baseUrl}/Uploads/${relativePath}`;
 
-    ffmpeg.ffprobe(filePath, async (err, metadata) => {
-      if (err) {
-        console.error('FFprobe Error:', err);
-        return res.status(500).json({ msg: 'Error processing video', error: err.message });
-      }
-
-      const duration = metadata.format.duration;
-      console.log('Video Duration:', duration);
-      if (duration > 60) {
-        return res.status(400).json({ errors: { video: 'Video must be 1 minute or less' } });
-      }
-
-      const relativePath = path.relative(path.join(__dirname, '../Uploads'), filePath).replace(/\\/g, '/');
-      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-      const videoUrl = `${baseUrl}/Uploads/${relativePath}`;
-
-      const reel = await Reel.create({
-        videoUrl,
-        caption,
-        user: userId,
-      });
-
-      res.status(201).json({ msg: 'Reel uploaded successfully', reel });
+    const reel = await Reel.create({
+      videoUrl,
+      caption,
+      user: userId,
     });
+
+    res.status(201).json({ msg: 'Reel uploaded successfully', reel });
   } catch (err) {
-    console.error('Upload Reel Error:', err);
+    console.error('Upload Reel Error:', {
+      message: err.message,
+      stack: err.stack,
+    });
+    // Cleanup file on error
+    fs.unlink(filePath, (unlinkErr) => {
+      if (unlinkErr) console.error('File Cleanup Error:', unlinkErr);
+    });
     res.status(500).json({ msg: 'Failed to upload reel', error: err.message });
   }
 };
@@ -131,7 +118,10 @@ exports.getAllReels = async (req, res) => {
 
     res.status(200).json({ reels });
   } catch (err) {
-    console.error('Get Reels Error:', err);
+    console.error('Get Reels Error:', {
+      message: err.message,
+      stack: err.stack,
+    });
     res.status(500).json({ msg: 'Failed to fetch reels', error: err.message });
   }
 };

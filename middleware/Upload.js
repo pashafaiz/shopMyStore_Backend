@@ -54,7 +54,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`);
   },
 });
 
@@ -63,8 +63,8 @@ const fileFilter = (req, file, cb) => {
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    console.log('Rejected MIME Type:', file.mimetype);
-    cb(new Error('Only video files are allowed!'), false);
+    console.error('Rejected MIME Type:', file.mimetype);
+    cb(new Error('Only video files (mp4, mov, mkv) are allowed'), false);
   }
 };
 
@@ -72,7 +72,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 60 * 1024 * 1024, // 60MB
+    fileSize: 100 * 1024 * 1024, // 100MB
   },
 });
 
