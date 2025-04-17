@@ -9,7 +9,7 @@ exports.createProduct = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, price, image } = req.body;
+  const { name, description, price, image, createdBy } = req.body;
   
   try {
     const user = await User.findById(req.user.userId);
@@ -22,7 +22,7 @@ exports.createProduct = async (req, res) => {
       description,
       price,
       image,
-      createdBy: req.user.userId
+      createdBy: createdBy || req.user.userId, // Use req.body.createdBy if provided, else JWT userId
     });
 
     await product.save();
@@ -35,8 +35,10 @@ exports.createProduct = async (req, res) => {
         description: product.description,
         price: product.price,
         image: product.image,
-        createdAt: product.createdAt
-      }
+        createdBy: product.createdBy,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      },
     });
   } catch (err) {
     console.error('Product creation error:', err);
@@ -57,9 +59,10 @@ exports.getAllProducts = async (req, res) => {
         description: product.description,
         price: product.price,
         image: product.image,
+        createdBy: product.createdBy, // Include createdBy
         createdAt: product.createdAt,
-        updatedAt: product.updatedAt
-      }))
+        updatedAt: product.updatedAt,
+      })),
     });
   } catch (err) {
     console.error('Get products error:', err);
@@ -83,9 +86,10 @@ exports.getProduct = async (req, res) => {
         description: product.description,
         price: product.price,
         image: product.image,
+        createdBy: product.createdBy,
         createdAt: product.createdAt,
-        updatedAt: product.updatedAt
-      }
+        updatedAt: product.updatedAt,
+      },
     });
   } catch (err) {
     console.error('Get product error:', err);
@@ -132,8 +136,10 @@ exports.updateProduct = async (req, res) => {
         description: product.description,
         price: product.price,
         image: product.image,
-        updatedAt: product.updatedAt
-      }
+        createdBy: product.createdBy,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      },
     });
   } catch (err) {
     console.error('Update product error:', err);
@@ -158,7 +164,6 @@ exports.deleteProduct = async (req, res) => {
     }
 
     await Product.deleteOne({ _id: req.params.id }); 
-    await product.deleteOne(); 
 
     res.status(200).json({ msg: 'Product deleted successfully' });
   } catch (err) {
