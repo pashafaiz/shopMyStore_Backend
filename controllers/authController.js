@@ -1,3 +1,154 @@
+// const User = require('../models/User');
+// const bcrypt = require('bcrypt');
+// const nodemailer = require('nodemailer');
+// const crypto = require('crypto');
+// require('dotenv').config(); 
+// const jwt = require('jsonwebtoken');
+// const PendingUser = require('../models/PendingUser');
+
+// // =================== EMAIL TRANSPORTER ===================
+// const transporter = nodemailer.createTransport({
+//   host: process.env.EMAIL_HOST,
+//   port: process.env.EMAIL_PORT,
+//   secure: false,
+//   auth: {
+//     user: process.env.EMAIL_USER,
+//     pass: process.env.EMAIL_PASS
+//   }
+// });
+
+// // =================== SIGNUP ===================
+// exports.signup = async (req, res) => {
+//   const { fullName, userName, email, phoneNumber, password, confirmPassword } = req.body;
+//   const errors = {};
+
+//   // Validations
+//   if (!fullName) errors.fullName = 'Full Name is required';
+//   if (!userName) {
+//     errors.userName = 'Username is required';
+//   } else if (!/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{3,15}$/.test(userName)) {
+//     errors.userName = 'Username must be 3-15 characters, contain at least one letter and one number, with no spaces or special characters';
+//   }
+//   if (!email) {
+//     errors.email = 'Email is required';
+//   } else if (!/^[a-zA-Z]+\d*@gmail\.com$/.test(email)) {
+//     errors.email = 'Only valid Gmail addresses allowed (e.g. name123@gmail.com)';
+//   }
+//   if (!phoneNumber) {
+//     errors.phoneNumber = 'Phone Number is required';
+//   } else if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
+//     errors.phoneNumber = 'Invalid Indian phone number';
+//   }
+//   if (!password) {
+//     errors.password = 'Password is required';
+//   } else if (!/(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}/.test(password)) {
+//     errors.password = 'Password must be at least 8 characters, include a number, a letter, and a special character';
+//   }
+//   if (!confirmPassword) {
+//     errors.confirmPassword = 'Confirm Password is required';
+//   } else if (password !== confirmPassword) {
+//     errors.confirmPassword = 'Passwords do not match';
+//   }
+
+//   if (Object.keys(errors).length > 0) {
+//     return res.status(400).json({ errors });
+//   }
+
+//   try {
+//     const existingUser = await User.findOne({ email });
+//     if (existingUser) return res.status(400).json({ errors: { email: 'Email already in use' } });
+
+//     const existingUsername = await User.findOne({ userName: { $regex: `^${userName}$`, $options: 'i' } });
+//     if (existingUsername) return res.status(400).json({ errors: { userName: 'Username already taken' } });
+
+//     const pendingUsername = await PendingUser.findOne({ userName: { $regex: `^${userName}$`, $options: 'i' } });
+//     if (pendingUsername) return res.status(400).json({ errors: { userName: 'Username already taken' } });
+
+//     await PendingUser.deleteOne({ email });
+
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+//     await PendingUser.create({
+//       fullName,
+//       userName,
+//       email,
+//       phoneNumber,
+//       password: hashedPassword,
+//       otp,
+//       otpExpires
+//     });
+
+//     await transporter.sendMail({
+//       from: `"ShopMyStore" <${process.env.EMAIL_USER}>`,
+//       to: email,
+//       subject: `ShopMyStore OTP Verification Code`,
+//       html: `
+//         <div style="font-family: Arial, sans-serif;">
+//           <h1 style="color:rgb(245, 71, 88);">ShopMyStore</h1>
+//           <h2>Your OTP is: <strong>${otp}</strong></h2>
+//           <p>This OTP is valid for <strong>10 minutes</strong>.</p>
+//         </div>
+//       `
+//     });
+
+//     res.status(200).json({ msg: 'OTP sent to email. Please verify to complete signup.' });
+
+//   } catch (err) {
+//     console.error("Signup error:", err);
+//     res.status(500).json({ msg: 'Signup failed', error: err.message });
+//   }
+// };
+
+// // =================== OTP VERIFY ===================
+// exports.verifyOtp = async (req, res) => {
+//   const { otp } = req.body;
+
+//   try {
+//     if (!otp) return res.status(400).json({ errors: { otp: 'OTP is required' } });
+
+//     const pendingUser = await PendingUser.findOne({ otp });
+//     if (!pendingUser) return res.status(400).json({ errors: { otp: 'Invalid OTP or already used' } });
+
+//     if (pendingUser.otpExpires < new Date()) {
+//       return res.status(400).json({ errors: { otp: 'OTP has expired. Please sign up again' } });
+//     }
+
+//     const user = await User.create({
+//       fullName: pendingUser.fullName,
+//       userName: pendingUser.userName,
+//       email: pendingUser.email,
+//       phoneNumber: pendingUser.phoneNumber,
+//       password: pendingUser.password
+//     });
+
+//     await PendingUser.deleteOne({ email: pendingUser.email });
+
+//     const token = jwt.sign(
+//       { userId: user._id, email: user.email },
+//       process.env.JWT_SECRET,
+//       { expiresIn: '2d' } 
+//     );
+
+//     res.status(201).json({
+//       msg: 'OTP verified and user created successfully',
+//       token,
+//       user: {
+//         id: user._id,
+//         fullName: user.fullName,
+//         userName: user.userName,
+//         email: user.email,
+//         phoneNumber: user.phoneNumber
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Error in verifyOtp:", err);
+//     res.status(500).json({ msg: 'Failed to verify OTP', error: err.message });
+//   }
+// };
+
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
@@ -55,66 +206,160 @@ exports.signup = async (req, res) => {
   }
 
   try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ errors: { email: 'Email already in use' } });
+    // Check if email already exists in User collection
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ errors: { email: 'Email already in use' } });
+    }
 
-    const existingUsername = await User.findOne({ userName: { $regex: `^${userName}$`, $options: 'i' } });
-    if (existingUsername) return res.status(400).json({ errors: { userName: 'Username already taken' } });
+    // Check if username exists in either User or PendingUser collections (case insensitive)
+    const existingUsername = await User.findOne({ 
+      userName: { $regex: new RegExp(`^${userName}$`, 'i') } 
+    });
+    
+    const pendingUsername = await PendingUser.findOne({ 
+      userName: { $regex: new RegExp(`^${userName}$`, 'i') } 
+    });
 
-    const pendingUsername = await PendingUser.findOne({ userName: { $regex: `^${userName}$`, $options: 'i' } });
-    if (pendingUsername) return res.status(400).json({ errors: { userName: 'Username already taken' } });
+    if (existingUsername || pendingUsername) {
+      return res.status(400).json({ errors: { userName: 'Username already taken' } });
+    }
 
-    await PendingUser.deleteOne({ email });
+    // Delete any existing pending user with same email
+    await PendingUser.deleteOne({ email: email.toLowerCase() });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await PendingUser.create({
+    // Create new pending user
+    const newPendingUser = await PendingUser.create({
       fullName,
-      userName,
-      email,
+      userName: userName.toLowerCase(),
+      email: email.toLowerCase(),
       phoneNumber,
       password: hashedPassword,
       otp,
       otpExpires
     });
 
-    await transporter.sendMail({
+    // Send OTP to the provided email address (not our system email)
+    const mailOptions = {
       from: `"ShopMyStore" <${process.env.EMAIL_USER}>`,
-      to: email,
+      to: email.toLowerCase(),
       subject: `ShopMyStore OTP Verification Code`,
       html: `
         <div style="font-family: Arial, sans-serif;">
           <h1 style="color:rgb(245, 71, 88);">ShopMyStore</h1>
           <h2>Your OTP is: <strong>${otp}</strong></h2>
           <p>This OTP is valid for <strong>10 minutes</strong>.</p>
+          <p>If you didn't request this, please ignore this email.</p>
         </div>
       `
-    });
+    };
 
-    res.status(200).json({ msg: 'OTP sent to email. Please verify to complete signup.' });
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ 
+      msg: 'OTP sent to your email. Please verify to complete signup.',
+      email: newPendingUser.email // Return the normalized email for reference
+    });
 
   } catch (err) {
     console.error("Signup error:", err);
-    res.status(500).json({ msg: 'Signup failed', error: err.message });
+    res.status(500).json({ 
+      msg: 'Signup failed', 
+      error: err.message,
+      systemError: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 
 // =================== OTP VERIFY ===================
+// exports.verifyOtp = async (req, res) => {
+//   const { email, otp } = req.body;
+
+//   try {
+//     // if (!email) return res.status(400).json({ errors: { email: 'Email is required' } });
+//     if (!otp) return res.status(400).json({ errors: { otp: 'OTP is required' } });
+
+//     // Find pending user by email and OTP
+//     const pendingUser = await PendingUser.findOne({ 
+//       email: email.toLowerCase(),
+//       otp 
+//     });
+
+//     if (!pendingUser) {
+//       return res.status(400).json({ errors: { otp: 'Invalid OTP or email' } });
+//     }
+
+//     if (pendingUser.otpExpires < new Date()) {
+//       await PendingUser.deleteOne({ email: email.toLowerCase() });
+//       return res.status(400).json({ errors: { otp: 'OTP has expired. Please sign up again' } });
+//     }
+
+//     // Create the actual user
+//     const user = await User.create({
+//       fullName: pendingUser.fullName,
+//       userName: pendingUser.userName,
+//       email: pendingUser.email,
+//       phoneNumber: pendingUser.phoneNumber,
+//       password: pendingUser.password
+//     });
+
+//     // Clean up pending user
+//     await PendingUser.deleteOne({ email: pendingUser.email });
+
+//     // Generate JWT token
+//     const token = jwt.sign(
+//       { userId: user._id, email: user.email },
+//       process.env.JWT_SECRET,
+//       { expiresIn: '2d' } 
+//     );
+
+//     res.status(201).json({
+//       msg: 'Account verified and created successfully',
+//       token,
+//       user: {
+//         id: user._id,
+//         fullName: user.fullName,
+//         userName: user.userName,
+//         email: user.email,
+//         phoneNumber: user.phoneNumber
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Error in verifyOtp:", err);
+//     res.status(500).json({ 
+//       msg: 'Failed to verify OTP', 
+//       error: err.message,
+//       systemError: process.env.NODE_ENV === 'development' ? err.stack : undefined
+//     });
+//   }
+// };
+
 exports.verifyOtp = async (req, res) => {
   const { otp } = req.body;
 
   try {
+    // Validate OTP presence
     if (!otp) return res.status(400).json({ errors: { otp: 'OTP is required' } });
 
+    // Find pending user by OTP
     const pendingUser = await PendingUser.findOne({ otp });
-    if (!pendingUser) return res.status(400).json({ errors: { otp: 'Invalid OTP or already used' } });
 
+    if (!pendingUser) {
+      return res.status(400).json({ errors: { otp: 'Invalid OTP' } });
+    }
+
+    // Check if OTP has expired
     if (pendingUser.otpExpires < new Date()) {
+      await PendingUser.deleteOne({ _id: pendingUser._id });
       return res.status(400).json({ errors: { otp: 'OTP has expired. Please sign up again' } });
     }
 
+    // Create the actual user
     const user = await User.create({
       fullName: pendingUser.fullName,
       userName: pendingUser.userName,
@@ -123,16 +368,18 @@ exports.verifyOtp = async (req, res) => {
       password: pendingUser.password
     });
 
-    await PendingUser.deleteOne({ email: pendingUser.email });
+    // Clean up pending user
+    await PendingUser.deleteOne({ _id: pendingUser._id });
 
+    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: '2d' } 
+      { expiresIn: '2d' }
     );
 
     res.status(201).json({
-      msg: 'OTP verified and user created successfully',
+      msg: 'Account verified and created successfully',
       token,
       user: {
         id: user._id,
@@ -145,9 +392,14 @@ exports.verifyOtp = async (req, res) => {
 
   } catch (err) {
     console.error("❌ Error in verifyOtp:", err);
-    res.status(500).json({ msg: 'Failed to verify OTP', error: err.message });
+    res.status(500).json({ 
+      msg: 'Failed to verify OTP', 
+      error: err.message,
+      systemError: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
+
 
 // =================== LOGIN ===================
 exports.login = async (req, res) => {
