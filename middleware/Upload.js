@@ -37,7 +37,7 @@
 
 
 
-
+// middleware/Upload.js
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -49,7 +49,7 @@ const storage = new CloudinaryStorage({
     return {
       folder: isVideo ? 'product_videos' : 'product_images',
       resource_type: isVideo ? 'video' : 'image',
-      public_id: `shopmystore_${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      public_id: `shopmystore_${Date.now()}_${file.originalname}`,
       transformation: isVideo
         ? [{ quality: 'auto:best', fetch_format: 'mp4', video_codec: 'h264' }]
         : [{ quality: 'auto', fetch_format: 'auto' }],
@@ -76,7 +76,7 @@ const Upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 60 * 1024 * 1024, // 60MB
+    fileSize: 60 * 1024 * 1024, // 60MB per file
     files: 5, // Max 5 files
   },
 });

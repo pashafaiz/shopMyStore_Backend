@@ -243,7 +243,7 @@
 
 
 
-
+// controllers/productController.js
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
@@ -272,8 +272,8 @@ exports.createProduct = async (req, res) => {
     // Process uploaded files
     const media = files.map((file) => ({
       url: file.path, // Cloudinary URL
-      publicId: file.filename, // Cloudinary public ID
       mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+      publicId: file.filename, // Cloudinary public ID
     }));
 
     const product = new Product({
@@ -366,7 +366,7 @@ exports.updateProduct = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, price, existingMedia } = req.body;
+  const { name, description, price } = req.body;
   const files = req.files;
 
   try {
@@ -380,51 +380,30 @@ exports.updateProduct = async (req, res) => {
       return res.status(401).json({ msg: 'Not authorized to update this product' });
     }
 
-    // Parse existingMedia if provided (e.g., from frontend to keep some media)
-    let existingMediaArray = [];
-    if (existingMedia) {
-      try {
-        existingMediaArray = Array.isArray(existingMedia)
-          ? existingMedia
-          : JSON.parse(existingMedia);
-      } catch (e) {
-        return res.status(400).json({ msg: 'Invalid existingMedia format' });
-      }
+    // Delete old media from Cloudinary if new files are uploaded
+    if (files && files.length > 0 && product.media.length > 0) {
+      await Promise.all(
+        product.media.map((media) =>
+          cloudinary.uploader.destroy(media.publicId, {
+            resource_type: media.mediaType,
+          })
+        )
+      );
     }
 
-    // Delete old media from Cloudinary if not in existingMedia
-    const mediaToKeep = existingMediaArray.map((item) => item.publicId);
-    const mediaToDelete = product.media.filter(
-      (item) => !mediaToKeep.includes(item.publicId)
-    );
-    await Promise.all(
-      mediaToDelete.map((item) =>
-        cloudinary.uploader.destroy(item.publicId, {
-          resource_type: item.mediaType,
-        })
-      )
-    );
-
-    // Process new uploaded files
-    const newMedia = files
+    // Process new media files
+    const newMedia = files && files.length > 0
       ? files.map((file) => ({
           url: file.path,
-          publicId: file.filename,
           mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+          publicId: file.filename,
         }))
-      : [];
-
-    // Combine existing and new media
-    product.media = [
-      ...existingMediaArray.filter((item) =>
-        product.media.some((m) => m.publicId === item.publicId)
-      ),
-      ...newMedia,
-    ].slice(0, 5); // Limit to 5 media items
+      : product.media; // Keep existing media if no new files
 
     product.name = name || product.name;
     product.description = description || product.description;
     product.price = price || product.price;
+    product.media = newMedia;
     product.updatedAt = Date.now();
 
     await product.save();
@@ -465,13 +444,15 @@ exports.deleteProduct = async (req, res) => {
     }
 
     // Delete all media from Cloudinary
-    await Promise.all(
-      product.media.map((item) =>
-        cloudinary.uploader.destroy(item.publicId, {
-          resource_type: item.mediaType,
-        })
-      )
-    );
+    if (product.media.length > 0) {
+      await Promise.all(
+        product.media.map((media) =>
+          cloudinary.uploader.destroy(media.publicId, {
+            resource_type: media.mediaType,
+          })
+        )
+      );
+    }
 
     await Product.deleteOne({ _id: req.params.id });
 

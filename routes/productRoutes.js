@@ -58,7 +58,7 @@
 
 
 
-
+// routes/productRoutes.js
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
@@ -100,7 +100,7 @@ router.get('/:id', productController.getProduct);
 router.put(
   '/:id',
   authController.verifyToken,
-  upload.array('media', 5),
+  upload.array('media', 5), // Changed to support multiple media
   productValidation,
   productController.updateProduct
 );

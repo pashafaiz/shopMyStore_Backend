@@ -42,7 +42,7 @@
 
 
 
-
+// models/Product.js
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
@@ -66,13 +66,13 @@ const productSchema = new mongoose.Schema({
         type: String, // Cloudinary URL
         required: true,
       },
-      publicId: {
-        type: String, // Cloudinary public ID
-        required: true,
-      },
       mediaType: {
         type: String,
         enum: ['image', 'video'],
+        required: true,
+      },
+      publicId: {
+        type: String, // Cloudinary public ID
         required: true,
       },
     },
