@@ -1,6 +1,7 @@
 // const Product = require('../models/Product');
 // const User = require('../models/User');
 // const { validationResult } = require('express-validator');
+// const cloudinary = require('../config/cloudinary');
 
 // // =================== CREATE PRODUCT (POST) ===================
 // exports.createProduct = async (req, res) => {
@@ -9,8 +10,14 @@
 //     return res.status(400).json({ errors: errors.array() });
 //   }
 
-//   const { name, description, price, image, createdBy } = req.body;
-  
+//   const { name, description, price } = req.body;
+//   const image = req.file ? req.file.path : null; // Cloudinary URL
+//   const publicId = req.file ? req.file.filename : null; // Cloudinary public ID
+
+//   if (!image || !publicId) {
+//     return res.status(400).json({ msg: 'Image is required' });
+//   }
+
 //   try {
 //     const user = await User.findById(req.user.userId);
 //     if (!user) {
@@ -22,7 +29,8 @@
 //       description,
 //       price,
 //       image,
-//       createdBy: createdBy || req.user.userId, // Use req.body.createdBy if provided, else JWT userId
+//       publicId,
+//       createdBy: req.user.userId,
 //     });
 
 //     await product.save();
@@ -50,16 +58,16 @@
 // exports.getAllProducts = async (req, res) => {
 //   try {
 //     const products = await Product.find().sort({ createdAt: -1 });
-    
+
 //     res.status(200).json({
 //       count: products.length,
-//       products: products.map(product => ({
+//       products: products.map((product) => ({
 //         id: product._id,
 //         name: product.name,
 //         description: product.description,
 //         price: product.price,
 //         image: product.image,
-//         createdBy: product.createdBy, // Include createdBy
+//         createdBy: product.createdBy,
 //         createdAt: product.createdAt,
 //         updatedAt: product.updatedAt,
 //       })),
@@ -74,7 +82,7 @@
 // exports.getProduct = async (req, res) => {
 //   try {
 //     const product = await Product.findById(req.params.id);
-    
+
 //     if (!product) {
 //       return res.status(404).json({ msg: 'Product not found' });
 //     }
@@ -100,6 +108,7 @@
 //   }
 // };
 
+
 // // =================== UPDATE PRODUCT (PUT) ===================
 // exports.updateProduct = async (req, res) => {
 //   const errors = validationResult(req);
@@ -107,11 +116,13 @@
 //     return res.status(400).json({ errors: errors.array() });
 //   }
 
-//   const { name, description, price, image } = req.body;
-  
+//   const { name, description, price } = req.body;
+//   const newImage = req.file ? req.file.path : null;
+//   const newPublicId = req.file ? req.file.filename : null;
+
 //   try {
 //     let product = await Product.findById(req.params.id);
-    
+
 //     if (!product) {
 //       return res.status(404).json({ msg: 'Product not found' });
 //     }
@@ -120,10 +131,16 @@
 //       return res.status(401).json({ msg: 'Not authorized to update this product' });
 //     }
 
+//     // Delete old image from Cloudinary if a new one is uploaded
+//     if (newImage && product.publicId) {
+//       await cloudinary.uploader.destroy(product.publicId);
+//     }
+
 //     product.name = name || product.name;
 //     product.description = description || product.description;
 //     product.price = price || product.price;
-//     product.image = image || product.image;
+//     product.image = newImage || product.image;
+//     product.publicId = newPublicId || product.publicId;
 //     product.updatedAt = Date.now();
 
 //     await product.save();
@@ -154,7 +171,7 @@
 // exports.deleteProduct = async (req, res) => {
 //   try {
 //     const product = await Product.findById(req.params.id);
-    
+
 //     if (!product) {
 //       return res.status(404).json({ msg: 'Product not found' });
 //     }
@@ -163,7 +180,12 @@
 //       return res.status(401).json({ msg: 'Not authorized to delete this product' });
 //     }
 
-//     await Product.deleteOne({ _id: req.params.id }); 
+//     // Delete image from Cloudinary
+//     if (product.publicId) {
+//       await cloudinary.uploader.destroy(product.publicId);
+//     }
+
+//     await Product.deleteOne({ _id: req.params.id });
 
 //     res.status(200).json({ msg: 'Product deleted successfully' });
 //   } catch (err) {
@@ -175,15 +197,53 @@
 //   }
 // };
 
+// // =================== GET RELATED PRODUCTS (GET) ===================
+// exports.getRelatedProducts = async (req, res) => {
+//   try {
+//     const product = await Product.findById(req.params.id);
+//     if (!product) {
+//       return res.status(404).json({ msg: 'Product not found' });
+//     }
+
+//     // Simple related products logic (e.g., same creator or similar price range)
+//     const relatedProducts = await Product.find({
+//       _id: { $ne: req.params.id },
+//       $or: [
+//         { createdBy: product.createdBy },
+//         { price: { $gte: product.price * 0.8, $lte: product.price * 1.2 } },
+//       ],
+//     })
+//       .limit(5)
+//       .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       count: relatedProducts.length,
+//       products: relatedProducts.map((product) => ({
+//         id: product._id,
+//         name: product.name,
+//         description: product.description,
+//         price: product.price,
+//         image: product.image,
+//         createdBy: product.createdBy,
+//         createdAt: product.createdAt,
+//         updatedAt: product.updatedAt,
+//       })),
+//     });
+//   } catch (err) {
+//     console.error('Get related products error:', err);
+//     if (err.kind === 'ObjectId') {
+//       return res.status(404).json({ msg: 'Product not found' });
+//     }
+//     res.status(500).json({ msg: 'Server error', error: err.message });
+//   }
+// };
+
+// module.exports = exports;
 
 
 
 
 
-
-
-
-// controllers/productController.js
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
@@ -197,11 +257,10 @@ exports.createProduct = async (req, res) => {
   }
 
   const { name, description, price } = req.body;
-  const image = req.file ? req.file.path : null; // Cloudinary URL
-  const publicId = req.file ? req.file.filename : null; // Cloudinary public ID
+  const files = req.files;
 
-  if (!image || !publicId) {
-    return res.status(400).json({ msg: 'Image is required' });
+  if (!files || files.length === 0) {
+    return res.status(400).json({ msg: 'At least one image or video is required' });
   }
 
   try {
@@ -210,12 +269,18 @@ exports.createProduct = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
 
+    // Process uploaded files
+    const media = files.map((file) => ({
+      url: file.path, // Cloudinary URL
+      publicId: file.filename, // Cloudinary public ID
+      mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+    }));
+
     const product = new Product({
       name,
       description,
       price,
-      image,
-      publicId,
+      media,
       createdBy: req.user.userId,
     });
 
@@ -228,7 +293,7 @@ exports.createProduct = async (req, res) => {
         name: product.name,
         description: product.description,
         price: product.price,
-        image: product.image,
+        media: product.media,
         createdBy: product.createdBy,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
@@ -252,7 +317,7 @@ exports.getAllProducts = async (req, res) => {
         name: product.name,
         description: product.description,
         price: product.price,
-        image: product.image,
+        media: product.media,
         createdBy: product.createdBy,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
@@ -279,7 +344,7 @@ exports.getProduct = async (req, res) => {
         name: product.name,
         description: product.description,
         price: product.price,
-        image: product.image,
+        media: product.media,
         createdBy: product.createdBy,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
@@ -294,7 +359,6 @@ exports.getProduct = async (req, res) => {
   }
 };
 
-
 // =================== UPDATE PRODUCT (PUT) ===================
 exports.updateProduct = async (req, res) => {
   const errors = validationResult(req);
@@ -302,9 +366,8 @@ exports.updateProduct = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, price } = req.body;
-  const newImage = req.file ? req.file.path : null;
-  const newPublicId = req.file ? req.file.filename : null;
+  const { name, description, price, existingMedia } = req.body;
+  const files = req.files;
 
   try {
     let product = await Product.findById(req.params.id);
@@ -317,16 +380,51 @@ exports.updateProduct = async (req, res) => {
       return res.status(401).json({ msg: 'Not authorized to update this product' });
     }
 
-    // Delete old image from Cloudinary if a new one is uploaded
-    if (newImage && product.publicId) {
-      await cloudinary.uploader.destroy(product.publicId);
+    // Parse existingMedia if provided (e.g., from frontend to keep some media)
+    let existingMediaArray = [];
+    if (existingMedia) {
+      try {
+        existingMediaArray = Array.isArray(existingMedia)
+          ? existingMedia
+          : JSON.parse(existingMedia);
+      } catch (e) {
+        return res.status(400).json({ msg: 'Invalid existingMedia format' });
+      }
     }
+
+    // Delete old media from Cloudinary if not in existingMedia
+    const mediaToKeep = existingMediaArray.map((item) => item.publicId);
+    const mediaToDelete = product.media.filter(
+      (item) => !mediaToKeep.includes(item.publicId)
+    );
+    await Promise.all(
+      mediaToDelete.map((item) =>
+        cloudinary.uploader.destroy(item.publicId, {
+          resource_type: item.mediaType,
+        })
+      )
+    );
+
+    // Process new uploaded files
+    const newMedia = files
+      ? files.map((file) => ({
+          url: file.path,
+          publicId: file.filename,
+          mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+        }))
+      : [];
+
+    // Combine existing and new media
+    product.media = [
+      ...existingMediaArray.filter((item) =>
+        product.media.some((m) => m.publicId === item.publicId)
+      ),
+      ...newMedia,
+    ].slice(0, 5); // Limit to 5 media items
 
     product.name = name || product.name;
     product.description = description || product.description;
     product.price = price || product.price;
-    product.image = newImage || product.image;
-    product.publicId = newPublicId || product.publicId;
     product.updatedAt = Date.now();
 
     await product.save();
@@ -338,7 +436,7 @@ exports.updateProduct = async (req, res) => {
         name: product.name,
         description: product.description,
         price: product.price,
-        image: product.image,
+        media: product.media,
         createdBy: product.createdBy,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
@@ -366,10 +464,14 @@ exports.deleteProduct = async (req, res) => {
       return res.status(401).json({ msg: 'Not authorized to delete this product' });
     }
 
-    // Delete image from Cloudinary
-    if (product.publicId) {
-      await cloudinary.uploader.destroy(product.publicId);
-    }
+    // Delete all media from Cloudinary
+    await Promise.all(
+      product.media.map((item) =>
+        cloudinary.uploader.destroy(item.publicId, {
+          resource_type: item.mediaType,
+        })
+      )
+    );
 
     await Product.deleteOne({ _id: req.params.id });
 
@@ -391,7 +493,6 @@ exports.getRelatedProducts = async (req, res) => {
       return res.status(404).json({ msg: 'Product not found' });
     }
 
-    // Simple related products logic (e.g., same creator or similar price range)
     const relatedProducts = await Product.find({
       _id: { $ne: req.params.id },
       $or: [
@@ -409,7 +510,7 @@ exports.getRelatedProducts = async (req, res) => {
         name: product.name,
         description: product.description,
         price: product.price,
-        image: product.image,
+        media: product.media,
         createdBy: product.createdBy,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,

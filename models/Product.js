@@ -1,38 +1,41 @@
-// // models/Product.js
 // const mongoose = require('mongoose');
 
 // const productSchema = new mongoose.Schema({
 //   name: {
 //     type: String,
 //     required: true,
-//     trim: true
+//     trim: true,
 //   },
 //   description: {
 //     type: String,
-//     required: true
+//     required: true,
 //   },
 //   price: {
 //     type: Number,
 //     required: true,
-//     min: 0
+//     min: 0,
 //   },
 //   image: {
-//     type: String, // This will store the URL/path to the image
-//     required: true
+//     type: String, // Cloudinary URL
+//     required: true,
+//   },
+//   publicId: {
+//     type: String, // Cloudinary public ID for image
+//     required: true,
 //   },
 //   createdBy: {
 //     type: mongoose.Schema.Types.ObjectId,
 //     ref: 'User',
-//     required: true
+//     required: true,
 //   },
 //   createdAt: {
 //     type: Date,
-//     default: Date.now
+//     default: Date.now,
 //   },
 //   updatedAt: {
 //     type: Date,
-//     default: Date.now
-//   }
+//     default: Date.now,
+//   },
 // });
 
 // module.exports = mongoose.model('Product', productSchema);
@@ -40,8 +43,6 @@
 
 
 
-
-// models/Product.js
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
@@ -59,14 +60,23 @@ const productSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
-  image: {
-    type: String, // Cloudinary URL
-    required: true,
-  },
-  publicId: {
-    type: String, // Cloudinary public ID for image
-    required: true,
-  },
+  media: [
+    {
+      url: {
+        type: String, // Cloudinary URL
+        required: true,
+      },
+      publicId: {
+        type: String, // Cloudinary public ID
+        required: true,
+      },
+      mediaType: {
+        type: String,
+        enum: ['image', 'video'],
+        required: true,
+      },
+    },
+  ],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

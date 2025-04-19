@@ -1,33 +1,29 @@
 // const multer = require('multer');
-// const path = require('path');
-// const fs = require('fs');
+// const cloudinary = require('../config/cloudinary');
+// const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// const uploadDir = path.join(__dirname, '../uploads/reels');
-
-// if (!fs.existsSync(uploadDir)) {
-//   fs.mkdirSync(uploadDir, { recursive: true });
-// }
-
-// const storage = multer.diskStorage({
-//   destination: function (req, file, cb) {
-//     cb(null, uploadDir);
+// const storage = new CloudinaryStorage({
+//   cloudinary: cloudinary,
+//   params: async (req, file) => {
+//     const isVideo = file.mimetype.startsWith('video');
+//     return {
+//       folder: isVideo ? 'reels' : 'products',
+//       resource_type: isVideo ? 'video' : 'image',
+//       public_id: `shopmystore_${Date.now()}_${file.originalname}`,
+//     };
 //   },
-//   filename: function (req, file, cb) {
-//     const ext = path.extname(file.originalname);
-//     cb(null, Date.now() + ext);
-//   }
 // });
 
 // const fileFilter = (req, file, cb) => {
-//   const allowedMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-matroska'];
+//   const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/x-matroska'];
 //   if (allowedMimeTypes.includes(file.mimetype)) {
 //     cb(null, true);
 //   } else {
-//     cb(new Error('Only video files are allowed!'), false);
+//     cb(new Error('Only images and videos are allowed!'), false);
 //   }
 // };
 
-// const upload = multer({
+// const Upload = multer({
 //   storage,
 //   fileFilter,
 //   limits: {
@@ -35,7 +31,7 @@
 //   },
 // });
 
-// module.exports = upload;
+// module.exports = Upload;
 
 
 
@@ -51,19 +47,28 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => {
     const isVideo = file.mimetype.startsWith('video');
     return {
-      folder: isVideo ? 'reels' : 'products',
+      folder: isVideo ? 'product_videos' : 'product_images',
       resource_type: isVideo ? 'video' : 'image',
-      public_id: `shopmystore_${Date.now()}_${file.originalname}`,
+      public_id: `shopmystore_${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      transformation: isVideo
+        ? [{ quality: 'auto:best', fetch_format: 'mp4', video_codec: 'h264' }]
+        : [{ quality: 'auto', fetch_format: 'auto' }],
     };
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/x-matroska'];
+  const allowedMimeTypes = [
+    'image/jpeg',
+    'image/png',
+    'video/mp4',
+    'video/quicktime',
+    'video/x-matroska',
+  ];
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only images and videos are allowed!'), false);
+    cb(new Error('Only JPEG, PNG, MP4, MOV, and MKV files are allowed!'), false);
   }
 };
 
@@ -72,6 +77,7 @@ const Upload = multer({
   fileFilter,
   limits: {
     fileSize: 60 * 1024 * 1024, // 60MB
+    files: 5, // Max 5 files
   },
 });
 
