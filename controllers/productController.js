@@ -506,4 +506,27 @@ exports.getRelatedProducts = async (req, res) => {
   }
 };
 
+
+exports.getProductsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    
+    if (!category) {
+      return res.status(400).json({ msg: 'Category is required' });
+    }
+
+    if (category === 'all') {
+      const products = await Product.find().populate('createdBy', 'name email');
+      return res.json({ products });
+    }
+
+    const products = await Product.find({ category }).populate('createdBy', 'name email');
+    
+    res.json({ products });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};
+
 module.exports = exports;

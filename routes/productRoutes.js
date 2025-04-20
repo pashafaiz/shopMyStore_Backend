@@ -73,6 +73,9 @@ const productValidation = [
   check('price', 'Price must be a positive number').isFloat({ min: 0 }),
 ];
 
+router.get('/category/:category', productController.getProductsByCategory);
+
+
 // @route   POST api/products
 // @desc    Create a product
 // @access  Private
