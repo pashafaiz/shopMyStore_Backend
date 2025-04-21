@@ -116,8 +116,8 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['electronics', 'grocery', 'medicine', 'oils', 'fashion', 'home', 'general'],
-    default: 'general',
+    enum: ['Assessories', 'Grocery', 'Toys', 'oils', 'Clothes', 'Shoes', 'Trending'],
+    default: 'Assessories',
     index: true
   },
   media: [
