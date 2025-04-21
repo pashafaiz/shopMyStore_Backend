@@ -250,13 +250,69 @@ const { validationResult } = require('express-validator');
 const cloudinary = require('../config/cloudinary');
 
 // =================== CREATE PRODUCT (POST) ===================
+// exports.createProduct = async (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     return res.status(400).json({ errors: errors.array() });
+//   }
+
+//   const { name, description, price } = req.body;
+//   const files = req.files;
+
+//   if (!files || files.length === 0) {
+//     return res.status(400).json({ msg: 'At least one image or video is required' });
+//   }
+
+//   try {
+//     const user = await User.findById(req.user.userId);
+//     if (!user) {
+//       return res.status(404).json({ msg: 'User not found' });
+//     }
+
+//     // Process uploaded files
+//     const media = files.map((file) => ({
+//       url: file.path, // Cloudinary URL
+//       mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+//       publicId: file.filename, // Cloudinary public ID
+//     }));
+
+//     const product = new Product({
+//       name,
+//       description,
+//       price,
+//       media,
+//       createdBy: req.user.userId,
+//     });
+
+//     await product.save();
+
+//     res.status(201).json({
+//       msg: 'Product created successfully',
+//       product: {
+//         id: product._id,
+//         name: product.name,
+//         description: product.description,
+//         price: product.price,
+//         media: product.media,
+//         createdBy: product.createdBy,
+//         createdAt: product.createdAt,
+//         updatedAt: product.updatedAt,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('Product creation error:', err);
+//     res.status(500).json({ msg: 'Server error', error: err.message });
+//   }
+// };
+
+
 exports.createProduct = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, price } = req.body;
+  const { name, description, price, category } = req.body;
   const files = req.files;
 
   if (!files || files.length === 0) {
@@ -269,17 +325,17 @@ exports.createProduct = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    // Process uploaded files
     const media = files.map((file) => ({
-      url: file.path, // Cloudinary URL
+      url: file.path,
       mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
-      publicId: file.filename, // Cloudinary public ID
+      publicId: file.filename,
     }));
 
     const product = new Product({
       name,
       description,
       price,
+      category: category || 'general',
       media,
       createdBy: req.user.userId,
     });
@@ -288,22 +344,14 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json({
       msg: 'Product created successfully',
-      product: {
-        id: product._id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        media: product.media,
-        createdBy: product.createdBy,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-      },
+      product
     });
   } catch (err) {
     console.error('Product creation error:', err);
     res.status(500).json({ msg: 'Server error', error: err.message });
   }
 };
+
 
 // =================== GET ALL PRODUCTS (GET) ===================
 exports.getAllProducts = async (req, res) => {
@@ -360,13 +408,83 @@ exports.getProduct = async (req, res) => {
 };
 
 // =================== UPDATE PRODUCT (PUT) ===================
+// exports.updateProduct = async (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     return res.status(400).json({ errors: errors.array() });
+//   }
+
+//   const { name, description, price } = req.body;
+//   const files = req.files;
+
+//   try {
+//     let product = await Product.findById(req.params.id);
+
+//     if (!product) {
+//       return res.status(404).json({ msg: 'Product not found' });
+//     }
+
+//     if (product.createdBy.toString() !== req.user.userId) {
+//       return res.status(401).json({ msg: 'Not authorized to update this product' });
+//     }
+
+//     // Delete old media from Cloudinary if new files are uploaded
+//     if (files && files.length > 0 && product.media.length > 0) {
+//       await Promise.all(
+//         product.media.map((media) =>
+//           cloudinary.uploader.destroy(media.publicId, {
+//             resource_type: media.mediaType,
+//           })
+//         )
+//       );
+//     }
+
+//     // Process new media files
+//     const newMedia = files && files.length > 0
+//       ? files.map((file) => ({
+//           url: file.path,
+//           mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
+//           publicId: file.filename,
+//         }))
+//       : product.media; 
+
+//     product.name = name || product.name;
+//     product.description = description || product.description;
+//     product.price = price || product.price;
+//     product.media = newMedia;
+//     product.updatedAt = Date.now();
+
+//     await product.save();
+
+//     res.status(200).json({
+//       msg: 'Product updated successfully',
+//       product: {
+//         id: product._id,
+//         name: product.name,
+//         description: product.description,
+//         price: product.price,
+//         media: product.media,
+//         createdBy: product.createdBy,
+//         createdAt: product.createdAt,
+//         updatedAt: product.updatedAt,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('Update product error:', err);
+//     if (err.kind === 'ObjectId') {
+//       return res.status(404).json({ msg: 'Product not found' });
+//     }
+//     res.status(500).json({ msg: 'Server error', error: err.message });
+//   }
+// };
+
 exports.updateProduct = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, price } = req.body;
+  const { name, description, price, category } = req.body;
   const files = req.files;
 
   try {
@@ -380,7 +498,6 @@ exports.updateProduct = async (req, res) => {
       return res.status(401).json({ msg: 'Not authorized to update this product' });
     }
 
-    // Delete old media from Cloudinary if new files are uploaded
     if (files && files.length > 0 && product.media.length > 0) {
       await Promise.all(
         product.media.map((media) =>
@@ -391,18 +508,18 @@ exports.updateProduct = async (req, res) => {
       );
     }
 
-    // Process new media files
     const newMedia = files && files.length > 0
       ? files.map((file) => ({
           url: file.path,
           mediaType: file.mimetype.startsWith('video') ? 'video' : 'image',
           publicId: file.filename,
         }))
-      : product.media; // Keep existing media if no new files
+      : product.media;
 
     product.name = name || product.name;
     product.description = description || product.description;
     product.price = price || product.price;
+    product.category = category || product.category;
     product.media = newMedia;
     product.updatedAt = Date.now();
 
@@ -410,16 +527,7 @@ exports.updateProduct = async (req, res) => {
 
     res.status(200).json({
       msg: 'Product updated successfully',
-      product: {
-        id: product._id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        media: product.media,
-        createdBy: product.createdBy,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-      },
+      product
     });
   } catch (err) {
     console.error('Update product error:', err);
@@ -478,24 +586,17 @@ exports.getRelatedProducts = async (req, res) => {
       _id: { $ne: req.params.id },
       $or: [
         { createdBy: product.createdBy },
+        { category: product.category },
         { price: { $gte: product.price * 0.8, $lte: product.price * 1.2 } },
       ],
     })
       .limit(5)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .populate('createdBy', 'name email');
 
     res.status(200).json({
       count: relatedProducts.length,
-      products: relatedProducts.map((product) => ({
-        id: product._id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        media: product.media,
-        createdBy: product.createdBy,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-      })),
+      products: relatedProducts
     });
   } catch (err) {
     console.error('Get related products error:', err);

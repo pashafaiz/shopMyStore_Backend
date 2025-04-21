@@ -118,12 +118,12 @@ const productSchema = new mongoose.Schema({
     required: true,
     enum: ['electronics', 'grocery', 'medicine', 'oils', 'fashion', 'home', 'general'],
     default: 'general',
-    index: true // Adding index for better query performance
+    index: true
   },
   media: [
     {
       url: {
-        type: String, // Cloudinary URL
+        type: String,
         required: true,
       },
       mediaType: {
@@ -132,7 +132,7 @@ const productSchema = new mongoose.Schema({
         required: true,
       },
       publicId: {
-        type: String, // Cloudinary public ID
+        type: String,
         required: true,
       },
     },
