@@ -9,6 +9,7 @@ router.post('/send-otp', authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
 router.post('/resend-otp', authController.resendOtp);
 router.put('/edit-profile', verifyToken, authController.editProfile);
+router.get('/user/:id', verifyToken, authController.getCompleteUserProfile);
 
 
 module.exports = router;
