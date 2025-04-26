@@ -19,10 +19,11 @@ const transporter = nodemailer.createTransport({
 
 // =================== SIGNUP ===================
 exports.signup = async (req, res) => {
-  const { fullName, userName, email, phoneNumber, password, confirmPassword } = req.body;
+  const { userType, fullName, userName, email, phoneNumber, password, confirmPassword } = req.body;
   const errors = {};
 
   // Validations
+  if (!userType) errors.userType = 'Please select user type (seller or customer)';
   if (!fullName) errors.fullName = 'Full Name is required';
   if (!userName) {
     errors.userName = 'Username is required';
@@ -31,8 +32,8 @@ exports.signup = async (req, res) => {
   }
   if (!email) {
     errors.email = 'Email is required';
-  } else if (!/^[a-zA-Z]+\d*@gmail\.com$/.test(email)) {
-    errors.email = 'Only valid Gmail addresses allowed (e.g. name123@gmail.com)';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Please enter a valid email address';
   }
   if (!phoneNumber) {
     errors.phoneNumber = 'Phone Number is required';
@@ -83,6 +84,7 @@ exports.signup = async (req, res) => {
 
     // Create new pending user
     const newPendingUser = await PendingUser.create({
+      userType,
       fullName,
       userName: userName.toLowerCase(),
       email: email.toLowerCase(),
@@ -92,7 +94,7 @@ exports.signup = async (req, res) => {
       otpExpires
     });
 
-    // Send OTP to the provided email address (not our system email)
+    // Send OTP to the provided email address
     const mailOptions = {
       from: `"ShopMyStore" <${process.env.EMAIL_USER}>`,
       to: email.toLowerCase(),
@@ -125,42 +127,47 @@ exports.signup = async (req, res) => {
 };
 
 // =================== OTP VERIFY ===================
-
 exports.verifyOtp = async (req, res) => {
   const { otp } = req.body;
 
   try {
-    // Validate OTP presence
     if (!otp) return res.status(400).json({ errors: { otp: 'OTP is required' } });
 
-    // Find pending user by OTP
     const pendingUser = await PendingUser.findOne({ otp });
-
     if (!pendingUser) {
       return res.status(400).json({ errors: { otp: 'Invalid OTP' } });
     }
 
-    // Check if OTP has expired
+    // DEBUG: Log the pending user to verify userType exists
+    console.log('Pending User Data:', {
+      id: pendingUser._id,
+      userType: pendingUser.userType,
+      email: pendingUser.email
+    });
+
     if (pendingUser.otpExpires < new Date()) {
       await PendingUser.deleteOne({ _id: pendingUser._id });
       return res.status(400).json({ errors: { otp: 'OTP has expired. Please sign up again' } });
     }
 
-    // Create the actual user
-    const user = await User.create({
+    // Create user with explicit userType
+    const userData = {
+      userType: pendingUser.userType, // This must come from pendingUser
       fullName: pendingUser.fullName,
       userName: pendingUser.userName,
       email: pendingUser.email,
       phoneNumber: pendingUser.phoneNumber,
       password: pendingUser.password
-    });
+    };
 
-    // Clean up pending user
+    console.log('Creating user with:', userData); // Debug log
+
+    const user = await User.create(userData);
+
     await PendingUser.deleteOne({ _id: pendingUser._id });
 
-    // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, userType: user.userType },
       process.env.JWT_SECRET,
       { expiresIn: '2d' }
     );
@@ -170,6 +177,7 @@ exports.verifyOtp = async (req, res) => {
       token,
       user: {
         id: user._id,
+        userType: user.userType,
         fullName: user.fullName,
         userName: user.userName,
         email: user.email,
@@ -178,11 +186,27 @@ exports.verifyOtp = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Error in verifyOtp:", err);
+    console.error("❌ Full error in verifyOtp:", {
+      message: err.message,
+      stack: err.stack,
+      validationErrors: err.errors
+    });
+
+    if (err.name === 'ValidationError') {
+      const details = {};
+      for (const field in err.errors) {
+        details[field] = err.errors[field].message;
+      }
+      return res.status(400).json({ 
+        msg: 'Validation failed',
+        error: err.message,
+        details: details
+      });
+    }
+
     res.status(500).json({ 
       msg: 'Failed to verify OTP', 
-      error: err.message,
-      systemError: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      error: err.message
     });
   }
 };
@@ -193,9 +217,10 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
   const errors = {};
 
+  // Updated email validation to accept any valid email (not just Gmail)
   if (!email) errors.email = 'Email is required';
-  else if (!/^[a-zA-Z0-9._%+-]+[0-9]*@gmail\.com$/.test(email)) {
-    errors.email = 'Invalid email format. Must be a valid Gmail address';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Please enter a valid email address';
   }
 
   if (!password) errors.password = 'Password is required';
@@ -212,23 +237,40 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ errors: { password: 'Password is incorrect' } });
 
+    // Include userType in the JWT token payload
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { 
+        userId: user._id, 
+        email: user.email,
+        userType: user.userType // Added userType to token
+      },
       process.env.JWT_SECRET,
       { expiresIn: '2d' } 
     );
 
-    const { _id, fullName, userName, email: userEmail, phoneNumber } = user;
+    // Include userType in the response
+    const { _id, fullName, userName, email: userEmail, phoneNumber, userType } = user;
 
     res.status(200).json({
       msg: 'Login successful',
       token,
-      user: { id: _id, fullName, userName, email: userEmail, phoneNumber }
+      user: { 
+        id: _id, 
+        userType, // Added userType here
+        fullName, 
+        userName, 
+        email: userEmail, 
+        phoneNumber 
+      }
     });
 
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({ msg: 'Login failed', error: err.message });
+    res.status(500).json({ 
+      msg: 'Login failed', 
+      error: err.message,
+      systemError: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 
