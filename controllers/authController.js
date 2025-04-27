@@ -275,6 +275,53 @@ exports.login = async (req, res) => {
 };
 
 // =================== EDIT PROFILE ===================
+// exports.editProfile = async (req, res) => {
+//   const userId = req.user.userId;
+//   const { fullName, userName } = req.body;
+//   const errors = {};
+
+//   if (!userName) {
+//     errors.userName = 'Username is required';
+//   } else if (!/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{3,15}$/.test(userName)) {
+//     errors.userName = 'Username must be 3-15 characters, contain at least one letter and one number, with no spaces or special characters';
+//   }
+
+//   if (Object.keys(errors).length > 0) {
+//     return res.status(400).json({ errors });
+//   }
+
+//   try {
+//     const user = await User.findById(userId);
+//     if (!user) return res.status(404).json({ msg: 'User not found' });
+
+//     const existingUser = await User.findOne({
+//       userName: { $regex: `^${userName}$`, $options: 'i' },
+//       _id: { $ne: userId }
+//     });
+
+//     if (existingUser) return res.status(400).json({ errors: { userName: 'Username already taken' } });
+
+//     user.fullName = fullName;
+//     user.userName = userName;
+//     await user.save();
+
+//     res.status(200).json({
+//       msg: 'Profile updated successfully',
+//       user: {
+//         id: user._id,
+//         fullName: user.fullName,
+//         userName: user.userName,
+//         email: user.email,
+//         phoneNumber: user.phoneNumber
+//       }
+//     });
+//   } catch (err) {
+//     console.error("Edit profile error:", err);
+//     res.status(500).json({ msg: 'Failed to update profile', error: err.message });
+//   }
+// };
+
+// =================== EDIT PROFILE ===================
 exports.editProfile = async (req, res) => {
   const userId = req.user.userId;
   const { fullName, userName } = req.body;
@@ -301,18 +348,27 @@ exports.editProfile = async (req, res) => {
 
     if (existingUser) return res.status(400).json({ errors: { userName: 'Username already taken' } });
 
-    user.fullName = fullName;
-    user.userName = userName;
-    await user.save();
+    // Only update the fields we want to change
+    const updates = {
+      fullName: fullName || user.fullName,  // Use existing value if not provided
+      userName: userName
+    };
+
+    // Use findByIdAndUpdate with { new: true } to return the updated document
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-password'); // Exclude password from the returned user object
 
     res.status(200).json({
       msg: 'Profile updated successfully',
       user: {
-        id: user._id,
-        fullName: user.fullName,
-        userName: user.userName,
-        email: user.email,
-        phoneNumber: user.phoneNumber
+        id: updatedUser._id,
+        fullName: updatedUser.fullName,
+        userName: updatedUser.userName,
+        email: updatedUser.email,
+        phoneNumber: updatedUser.phoneNumber
       }
     });
   } catch (err) {
@@ -320,6 +376,7 @@ exports.editProfile = async (req, res) => {
     res.status(500).json({ msg: 'Failed to update profile', error: err.message });
   }
 };
+
 
 // =================== RESEND OTP ===================
 exports.resendOtp = async (req, res) => {

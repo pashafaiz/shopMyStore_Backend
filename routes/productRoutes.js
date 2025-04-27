@@ -88,9 +88,8 @@ const cartValidation = [
 // @desc    Add product to cart
 // @access  Private
 router.post(
-  '/cart',
+  '/cart/:productId',  // Changed from '/cart'
   authController.verifyToken,
-  cartValidation,
   productController.addToCart
 );
 

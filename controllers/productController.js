@@ -281,72 +281,122 @@ exports.getProductsByCategory = async (req, res) => {
 };
 
 // =================== ADD TO CART (POST) ===================
-exports.addToCart = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+const mongoose = require('mongoose');
 
-  const { productId } = req.body;
+exports.addToCart = async (req, res) => {
+  console.log('[AddToCart] Request received:', {
+    params: req.params,
+    user: req.user
+  });
 
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
+    const { productId } = req.params;
+    const userId = req.user.userId;
+
+    // Validate productId format
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      console.error('Invalid product ID format:', productId);
+      return res.status(400).json({ 
+        success: false,
+        msg: 'Invalid product ID format' 
+      });
     }
 
-    const product = await Product.findById(productId);
+    // Check if product exists and user exists in parallel
+    const [product, user] = await Promise.all([
+      Product.findById(productId).select('_id name price').lean(),
+      User.findById(userId).select('cart')
+    ]);
+
     if (!product) {
-      return res.status(404).json({ msg: 'Product not found' });
+      console.error('Product not found:', productId);
+      return res.status(404).json({ 
+        success: false,
+        msg: 'Product not found' 
+      });
     }
 
-    if (user.cart.includes(productId)) {
-      return res.status(400).json({ msg: 'Product already in cart' });
+    if (!user) {
+      console.error('User not found:', userId);
+      return res.status(404).json({ 
+        success: false,
+        msg: 'User not found' 
+      });
     }
 
-    user.cart.push(productId);
-    await user.save();
+    // Check if product already in cart
+    if (user.cart.some(item => item.equals(productId))) {
+      console.log('Product already in cart:', productId);
+      return res.status(400).json({ 
+        success: false,
+        msg: 'Product already in cart' 
+      });
+    }
 
-    const populatedUser = await User.findById(req.user.userId).populate('cart');
-    res.status(200).json({
-      msg: 'Product added to cart',
-      cart: populatedUser.cart.filter((product) => product != null),
+    // Add to cart
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { cart: productId } },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).populate({
+      path: 'cart',
+      select: '_id name price media',
+      match: { _id: { $ne: null } } // Filter out null references
     });
+
+    console.log('Cart updated successfully for user:', userId);
+    
+    res.status(200).json({
+      success: true,
+      msg: 'Product added to cart',
+      cart: updatedUser.cart
+    });
+
   } catch (err) {
-    console.error('Add to cart error:', err);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Product not found' });
-    }
-    res.status(500).json({ msg: 'Server error', error: err.message });
+    console.error('[AddToCart] Error:', {
+      message: err.message,
+      stack: err.stack,
+      params: req.params,
+      user: req.user
+    });
+    
+    res.status(500).json({ 
+      success: false,
+      msg: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
-
 // =================== TOGGLE WISHLIST (POST) ===================
 exports.toggleWishlist = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
-    }
-
     const product = await Product.findById(req.params.productId);
     if (!product) {
       return res.status(404).json({ msg: 'Product not found' });
     }
 
-    const isInWishlist = user.wishlist.includes(req.params.productId);
-    if (isInWishlist) {
-      user.wishlist = user.wishlist.filter((id) => id.toString() !== req.params.productId);
-    } else {
-      user.wishlist.push(req.params.productId);
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
     }
 
-    await user.save();
+    const isInWishlist = user.wishlist.includes(req.params.productId);
+    const update = isInWishlist 
+      ? { $pull: { wishlist: req.params.productId } }
+      : { $addToSet: { wishlist: req.params.productId } };
 
-    const populatedUser = await User.findById(req.user.userId).populate('wishlist');
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.userId,
+      update,
+      { new: true }
+    ).populate('wishlist');
+
     res.status(200).json({
       msg: isInWishlist ? 'Product removed from wishlist' : 'Product added to wishlist',
-      wishlist: populatedUser.wishlist.filter((product) => product != null),
+      wishlist: updatedUser.wishlist.filter((product) => product != null),
       isWishlisted: !isInWishlist,
     });
   } catch (err) {
@@ -391,28 +441,29 @@ exports.getCart = async (req, res) => {
 // =================== REMOVE FROM CART (DELETE) ===================
 exports.removeFromCart = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: req.user.userId,
+        cart: req.params.productId
+      },
+      { $pull: { cart: req.params.productId } },
+      { new: true }
+    ).populate('cart');
+
+    if (!updatedUser) {
+      const user = await User.findById(req.user.userId);
+      if (!user) {
+        return res.status(404).json({ msg: 'User not found' });
+      }
+      if (!user.cart.includes(req.params.productId)) {
+        return res.status(400).json({ msg: 'Product not in cart' });
+      }
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    const product = await Product.findById(req.params.productId);
-    if (!product) {
-      return res.status(404).json({ msg: 'Product not found' });
-    }
-
-    if (!user.cart.includes(req.params.productId)) {
-      return res.status(400).json({ msg: 'Product not in cart' });
-    }
-
-    user.cart = user.cart.filter((id) => id.toString() !== req.params.productId);
-    await user.save();
-
-    const populatedUser = await User.findById(req.user.userId).populate('cart');
-    const validCart = populatedUser.cart.filter((product) => product != null);
     res.status(200).json({
       msg: 'Product removed from cart',
-      cart: validCart,
+      cart: updatedUser.cart.filter((product) => product != null),
     });
   } catch (err) {
     console.error('Remove from cart error:', err);
@@ -456,28 +507,29 @@ exports.getWishlist = async (req, res) => {
 // =================== REMOVE FROM WISHLIST (DELETE) ===================
 exports.removeFromWishlist = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: req.user.userId,
+        wishlist: req.params.productId
+      },
+      { $pull: { wishlist: req.params.productId } },
+      { new: true }
+    ).populate('wishlist');
+
+    if (!updatedUser) {
+      const user = await User.findById(req.user.userId);
+      if (!user) {
+        return res.status(404).json({ msg: 'User not found' });
+      }
+      if (!user.wishlist.includes(req.params.productId)) {
+        return res.status(400).json({ msg: 'Product not in wishlist' });
+      }
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    const product = await Product.findById(req.params.productId);
-    if (!product) {
-      return res.status(404).json({ msg: 'Product not found' });
-    }
-
-    if (!user.wishlist.includes(req.params.productId)) {
-      return res.status(400).json({ msg: 'Product not in wishlist' });
-    }
-
-    user.wishlist = user.wishlist.filter((id) => id.toString() !== req.params.productId);
-    await user.save();
-
-    const populatedUser = await User.findById(req.user.userId).populate('wishlist');
-    const validWishlist = populatedUser.wishlist.filter((product) => product != null);
     res.status(200).json({
       msg: 'Product removed from wishlist',
-      wishlist: validWishlist,
+      wishlist: updatedUser.wishlist.filter((product) => product != null),
     });
   } catch (err) {
     console.error('Remove from wishlist error:', err);
