@@ -1,43 +1,4 @@
-// const multer = require('multer');
-// const cloudinary = require('../config/cloudinary');
-// const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// const storage = new CloudinaryStorage({
-//   cloudinary: cloudinary,
-//   params: async (req, file) => {
-//     const isVideo = file.mimetype.startsWith('video');
-//     return {
-//       folder: isVideo ? 'reels' : 'products',
-//       resource_type: isVideo ? 'video' : 'image',
-//       public_id: `shopmystore_${Date.now()}_${file.originalname}`,
-//     };
-//   },
-// });
-
-// const fileFilter = (req, file, cb) => {
-//   const allowedMimeTypes = ['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/x-matroska'];
-//   if (allowedMimeTypes.includes(file.mimetype)) {
-//     cb(null, true);
-//   } else {
-//     cb(new Error('Only images and videos are allowed!'), false);
-//   }
-// };
-
-// const Upload = multer({
-//   storage,
-//   fileFilter,
-//   limits: {
-//     fileSize: 60 * 1024 * 1024, // 60MB
-//   },
-// });
-
-// module.exports = Upload;
-
-
-
-
-
-// middleware/Upload.js
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
