@@ -3,6 +3,21 @@ const Address = require('../models/Address');
 const PromoCode = require('../models/PromoCode');
 const Order = require('../models/Order');
 
+// Fetch all orders for the authenticated user
+exports.getOrders = async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const orders = await Order.find({ user: userId })
+      .populate('product', 'name price media')
+      .sort({ createdAt: -1 });
+    res.status(200).json({ msg: 'Orders retrieved successfully', orders });
+  } catch (err) {
+    console.error('Get orders error:', err);
+    res.status(500).json({ msg: 'Failed to fetch orders', error: err.message });
+  }
+};
+
 // Fetch product details
 exports.getProductDetails = async (req, res) => {
   const { id } = req.params;
