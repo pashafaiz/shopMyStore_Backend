@@ -58,29 +58,6 @@ exports.createNotification = async (req, res) => {
       return res.status(200).json({ msg: 'Notifications disabled for user, skipping creation' });
     }
 
-    // Check for duplicate notification (same userId, title, body within last 5 minutes)
-    const recentNotification = await Notification.findOne({
-      user: userId,
-      title,
-      body,
-      timestamp: { $gte: new Date(Date.now() - 5 * 60 * 1000) },
-    });
-
-    if (recentNotification) {
-      console.log('Duplicate notification detected for user:', userId, 'Title:', title);
-      return res.status(200).json({
-        msg: 'Duplicate notification skipped',
-        notification: {
-          id: recentNotification._id,
-          user: recentNotification.user,
-          title: recentNotification.title,
-          body: recentNotification.body,
-          read: recentNotification.read,
-          timestamp: recentNotification.timestamp,
-        },
-      });
-    }
-
     const notification = await Notification.create({
       user: userId,
       title,
@@ -107,6 +84,7 @@ exports.createNotification = async (req, res) => {
             sound: 'default',
             channelId: 'default_channel',
             priority: 'high',
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
           },
         },
         apns: {
@@ -115,6 +93,7 @@ exports.createNotification = async (req, res) => {
               sound: 'default',
               badge: 1,
               'content-available': 1,
+              category: 'GENERAL',
             },
           },
         },
