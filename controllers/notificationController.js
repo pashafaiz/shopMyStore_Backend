@@ -1,6 +1,7 @@
 const Notification = require('../models/notification');
 const User = require('../models/User');
 const admin = require('firebase-admin');
+const { v4: uuidv4 } = require('uuid');
 
 // Initialize Firebase Admin SDK
 let serviceAccount;
@@ -9,6 +10,7 @@ try {
     ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
     : require('../serviceAccountKey.json');
   if (!serviceAccount.private_key || !serviceAccount.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
+    throw new Error('Invalid service account private key');
   }
   console.log('Service account loaded successfully:', {
     project_id: serviceAccount.project_id,
@@ -16,6 +18,7 @@ try {
   });
 } catch (error) {
   console.error('Failed to load Firebase service account:', error.message);
+  throw error;
 }
 
 if (!admin.apps.length) {
@@ -55,6 +58,29 @@ exports.createNotification = async (req, res) => {
       return res.status(200).json({ msg: 'Notifications disabled for user, skipping creation' });
     }
 
+    // Check for duplicate notification (same userId, title, body within last 5 minutes)
+    const recentNotification = await Notification.findOne({
+      user: userId,
+      title,
+      body,
+      timestamp: { $gte: new Date(Date.now() - 5 * 60 * 1000) },
+    });
+
+    if (recentNotification) {
+      console.log('Duplicate notification detected for user:', userId, 'Title:', title);
+      return res.status(200).json({
+        msg: 'Duplicate notification skipped',
+        notification: {
+          id: recentNotification._id,
+          user: recentNotification.user,
+          title: recentNotification.title,
+          body: recentNotification.body,
+          read: recentNotification.read,
+          timestamp: recentNotification.timestamp,
+        },
+      });
+    }
+
     const notification = await Notification.create({
       user: userId,
       title,
@@ -63,15 +89,24 @@ exports.createNotification = async (req, res) => {
 
     // Send FCM push notification if user has FCM token
     if (user.fcmToken) {
+      const messageId = uuidv4();
       const message = {
+        messageId,
         notification: {
           title,
           body,
         },
+        data: {
+          screen: 'Notifications',
+          notificationId: notification._id.toString(),
+        },
         token: user.fcmToken,
         android: {
+          priority: 'high',
           notification: {
             sound: 'default',
+            channelId: 'default_channel',
+            priority: 'high',
           },
         },
         apns: {
@@ -79,15 +114,16 @@ exports.createNotification = async (req, res) => {
             aps: {
               sound: 'default',
               badge: 1,
+              'content-available': 1,
             },
           },
         },
       };
 
       try {
-        console.log('Attempting FCM push to token:', user.fcmToken);
-        await admin.messaging().send(message);
-        console.log('FCM push sent successfully to:', user.fcmToken);
+        console.log('Attempting FCM push to token:', user.fcmToken, 'Message ID:', messageId);
+        const response = await admin.messaging().send(message);
+        console.log('FCM push sent successfully to:', user.fcmToken, 'Response:', response);
       } catch (fcmError) {
         console.error('FCM push error:', {
           message: fcmError.message,
