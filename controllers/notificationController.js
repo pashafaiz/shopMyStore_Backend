@@ -3,14 +3,26 @@ const User = require('../models/User');
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  : require('../serviceAccountKey.json');
+let serviceAccount;
+try {
+  serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    : require('../serviceAccountKey.json');
+} catch (error) {
+  console.error('Failed to load Firebase service account:', error.message);
+  throw new Error('Firebase service account configuration missing. Set FIREBASE_SERVICE_ACCOUNT env variable or provide serviceAccountKey.json');
+}
 
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log('Firebase Admin SDK initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error.message);
+    throw error;
+  }
 }
 
 // Create a new notification
@@ -58,7 +70,7 @@ exports.createNotification = async (req, res) => {
         await admin.messaging().send(message);
         console.log('FCM push sent successfully to:', user.fcmToken);
       } catch (fcmError) {
-        console.error('FCM push error:', fcmError);
+        console.error('FCM push error:', fcmError.message);
         // Continue even if FCM fails, as DB save was successful
       }
     } else {
@@ -77,7 +89,7 @@ exports.createNotification = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Create notification error:', err);
+    console.error('Create notification error:', err.message);
     res.status(500).json({ msg: 'Failed to create notification', error: err.message });
   }
 };
@@ -96,7 +108,7 @@ exports.getNotifications = async (req, res) => {
       notifications,
     });
   } catch (err) {
-    console.error('Get notifications error:', err);
+    console.error('Get notifications error:', err.message);
     res.status(500).json({ msg: 'Failed to retrieve notifications', error: err.message });
   }
 };
@@ -131,7 +143,7 @@ exports.markAsRead = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Mark as read error:', err);
+    console.error('Mark as read error:', err.message);
     res.status(500).json({ msg: 'Failed to mark notification as read', error: err.message });
   }
 };
@@ -155,7 +167,7 @@ exports.deleteNotification = async (req, res) => {
       msg: 'Notification deleted successfully',
     });
   } catch (err) {
-    console.error('Delete notification error:', err);
+    console.error('Delete notification error:', err.message);
     res.status(500).json({ msg: 'Failed to delete notification', error: err.message });
   }
 };
@@ -171,7 +183,7 @@ exports.clearNotifications = async (req, res) => {
       msg: 'All notifications cleared successfully',
     });
   } catch (err) {
-    console.error('Clear notifications error:', err);
+    console.error('Clear notifications error:', err.message);
     res.status(500).json({ msg: 'Failed to clear notifications', error: err.message });
   }
 };
@@ -203,7 +215,7 @@ exports.saveFcmToken = async (req, res) => {
       msg: 'FCM token saved successfully',
     });
   } catch (err) {
-    console.error('Save FCM token error:', err);
+    console.error('Save FCM token error:', err.message);
     res.status(500).json({ msg: 'Failed to save FCM token', error: err.message });
   }
 };
