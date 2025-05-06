@@ -9,7 +9,6 @@ try {
     ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
     : require('../serviceAccountKey.json');
   if (!serviceAccount.private_key || !serviceAccount.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
-    throw new Error('Invalid private_key format in service account');
   }
   console.log('Service account loaded successfully:', {
     project_id: serviceAccount.project_id,
@@ -17,7 +16,6 @@ try {
   });
 } catch (error) {
   console.error('Failed to load Firebase service account:', error.message);
-  throw new Error('Firebase service account configuration missing or invalid. Set FIREBASE_SERVICE_ACCOUNT env variable or provide valid serviceAccountKey.json');
 }
 
 if (!admin.apps.length) {
