@@ -8,9 +8,16 @@ try {
   serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
     ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
     : require('../serviceAccountKey.json');
+  if (!serviceAccount.private_key || !serviceAccount.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
+    throw new Error('Invalid private_key format in service account');
+  }
+  console.log('Service account loaded successfully:', {
+    project_id: serviceAccount.project_id,
+    client_email: serviceAccount.client_email,
+  });
 } catch (error) {
   console.error('Failed to load Firebase service account:', error.message);
-  throw new Error('Firebase service account configuration missing. Set FIREBASE_SERVICE_ACCOUNT env variable or provide serviceAccountKey.json');
+  throw new Error('Firebase service account configuration missing or invalid. Set FIREBASE_SERVICE_ACCOUNT env variable or provide valid serviceAccountKey.json');
 }
 
 if (!admin.apps.length) {
@@ -64,13 +71,36 @@ exports.createNotification = async (req, res) => {
           body,
         },
         token: user.fcmToken,
+        android: {
+          notification: {
+            sound: 'default',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+            },
+          },
+        },
       };
 
       try {
+        console.log('Attempting FCM push to token:', user.fcmToken);
         await admin.messaging().send(message);
         console.log('FCM push sent successfully to:', user.fcmToken);
       } catch (fcmError) {
-        console.error('FCM push error:', fcmError.message);
+        console.error('FCM push error:', {
+          message: fcmError.message,
+          code: fcmError.code,
+          token: user.fcmToken,
+        });
+        // Clear invalid token
+        if (fcmError.code === 'messaging/registration-token-not-registered') {
+          console.warn('Clearing invalid FCM token for user:', userId);
+          await User.findByIdAndUpdate(userId, { $unset: { fcmToken: '' } });
+        }
         // Continue even if FCM fails, as DB save was successful
       }
     } else {
@@ -211,6 +241,7 @@ exports.saveFcmToken = async (req, res) => {
       return res.status(404).json({ errors: { userId: 'User not found' } });
     }
 
+    console.log('FCM token saved for user:', userId, 'Token:', fcmToken);
     res.status(200).json({
       msg: 'FCM token saved successfully',
     });
