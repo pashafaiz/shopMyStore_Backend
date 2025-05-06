@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
@@ -63,19 +64,37 @@ const userSchema = new mongoose.Schema(
       notifications: { type: Boolean, default: true },
       privateAccount: { type: Boolean, default: false },
     },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
     toJSON: {
       transform: function (doc, ret) {
         delete ret.password;
-        delete ret.otp;
+        delete ret.Otp;
         delete ret.otpExpires;
+        delete ret.__v;
         return ret;
       },
     },
   }
 );
+
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
+
+// Compare password
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
 userSchema.index({ userName: 1 });
 userSchema.index({ email: 1 });

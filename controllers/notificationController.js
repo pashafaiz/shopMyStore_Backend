@@ -1,5 +1,17 @@
 const Notification = require('../models/notification');
 const User = require('../models/User');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin SDK
+const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  : require('../serviceAccountKey.json');
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
 
 // Create a new notification
 exports.createNotification = async (req, res) => {
@@ -20,11 +32,38 @@ exports.createNotification = async (req, res) => {
       return res.status(404).json({ errors: { userId: 'User not found' } });
     }
 
+    // Check if user has notifications enabled
+    if (!user.settings.notifications) {
+      console.log('Notifications disabled for user:', userId);
+      return res.status(200).json({ msg: 'Notifications disabled for user, skipping creation' });
+    }
+
     const notification = await Notification.create({
       user: userId,
       title,
       body,
     });
+
+    // Send FCM push notification if user has FCM token
+    if (user.fcmToken) {
+      const message = {
+        notification: {
+          title,
+          body,
+        },
+        token: user.fcmToken,
+      };
+
+      try {
+        await admin.messaging().send(message);
+        console.log('FCM push sent successfully to:', user.fcmToken);
+      } catch (fcmError) {
+        console.error('FCM push error:', fcmError);
+        // Continue even if FCM fails, as DB save was successful
+      }
+    } else {
+      console.warn('No FCM token found for user:', userId);
+    }
 
     res.status(201).json({
       msg: 'Notification created successfully',
@@ -134,5 +173,37 @@ exports.clearNotifications = async (req, res) => {
   } catch (err) {
     console.error('Clear notifications error:', err);
     res.status(500).json({ msg: 'Failed to clear notifications', error: err.message });
+  }
+};
+
+// Save FCM token
+exports.saveFcmToken = async (req, res) => {
+  const { userId, fcmToken } = req.body;
+  const errors = {};
+
+  if (!userId) errors.userId = 'User ID is required';
+  if (!fcmToken) errors.fcmToken = 'FCM token is required';
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { fcmToken },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ errors: { userId: 'User not found' } });
+    }
+
+    res.status(200).json({
+      msg: 'FCM token saved successfully',
+    });
+  } catch (err) {
+    console.error('Save FCM token error:', err);
+    res.status(500).json({ msg: 'Failed to save FCM token', error: err.message });
   }
 };
