@@ -9,6 +9,7 @@ try {
     ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
     : require('../serviceAccountKey.json');
   if (!serviceAccount.private_key || !serviceAccount.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
+    throw new Error('Invalid service account key');
   }
   console.log('Service account loaded successfully:', {
     project_id: serviceAccount.project_id,
@@ -16,6 +17,7 @@ try {
   });
 } catch (error) {
   console.error('Failed to load Firebase service account:', error.message);
+  throw error;
 }
 
 if (!admin.apps.length) {
@@ -50,7 +52,7 @@ exports.createNotification = async (req, res) => {
     }
 
     // Check if user has notifications enabled
-    if (!user.settings.notifications) {
+    if (!user.settings?.notifications) {
       console.log('Notifications disabled for user:', userId);
       return res.status(200).json({ msg: 'Notifications disabled for user, skipping creation' });
     }
@@ -68,17 +70,30 @@ exports.createNotification = async (req, res) => {
           title,
           body,
         },
+        data: {
+          notificationId: notification._id.toString(),
+          userId: userId.toString(),
+          title,
+          body,
+          timestamp: new Date().toISOString(),
+        },
         token: user.fcmToken,
         android: {
           notification: {
             sound: 'default',
+            channelId: 'default_channel',
+            priority: 'high',
           },
         },
         apns: {
+          headers: {
+            'apns-priority': '10',
+          },
           payload: {
             aps: {
               sound: 'default',
               badge: 1,
+              contentAvailable: true,
             },
           },
         },
@@ -86,8 +101,8 @@ exports.createNotification = async (req, res) => {
 
       try {
         console.log('Attempting FCM push to token:', user.fcmToken);
-        await admin.messaging().send(message);
-        console.log('FCM push sent successfully to:', user.fcmToken);
+        const response = await admin.messaging().send(message);
+        console.log('FCM push sent successfully to:', user.fcmToken, 'Response:', response);
       } catch (fcmError) {
         console.error('FCM push error:', {
           message: fcmError.message,
@@ -99,7 +114,7 @@ exports.createNotification = async (req, res) => {
           console.warn('Clearing invalid FCM token for user:', userId);
           await User.findByIdAndUpdate(userId, { $unset: { fcmToken: '' } });
         }
-        // Continue even if FCM fails, as DB save was successful
+        // Log error but don't fail the request
       }
     } else {
       console.warn('No FCM token found for user:', userId);
@@ -129,7 +144,7 @@ exports.getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ user: userId })
       .sort({ read: 1, timestamp: -1 }) // Unread first, then by newest
-      .limit(50); // Limit to prevent overload
+      .limit(50);
 
     res.status(200).json({
       msg: 'Notifications retrieved successfully',
