@@ -211,7 +211,6 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-
 // =================== LOGIN ===================
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -330,7 +329,6 @@ exports.editProfile = async (req, res) => {
   }
 };
 
-
 // =================== RESEND OTP ===================
 exports.resendOtp = async (req, res) => {
   const { email } = req.body;
@@ -390,8 +388,6 @@ exports.verifyToken = (req, res, next) => {
     return res.status(401).json({ msg: 'Token is not valid', error: err.message });
   }
 };
-
-
 
 // =================== GET COMPLETE USER PROFILE ===================
 exports.getCompleteUserProfile = async (req, res) => {

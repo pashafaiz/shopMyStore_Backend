@@ -12,6 +12,7 @@ const productRoutes = require('./routes/productRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const chatRoutes = require('./routes/chatRoutes')
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
@@ -22,5 +23,6 @@ app.use('/api/products', productRoutes);
 app.use('/api/support', supportRoutes); 
 app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
 
 module.exports = app;
