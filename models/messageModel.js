@@ -16,7 +16,7 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      maxlength: 1000, // Limit message length
+      maxlength: 1000,
     },
     isRead: {
       type: Boolean,
@@ -38,7 +38,8 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-// Index for faster queries on sender and recipient
+// Indexes for faster queries
 messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
+messageSchema.index({ recipient: 1, sender: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Message', messageSchema);

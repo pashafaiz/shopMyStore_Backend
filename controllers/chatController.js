@@ -1,15 +1,28 @@
+const mongoose = require('mongoose');
 const Message = require('../models/messageModel');
 const User = require('../models/User');
 const Notification = require('../models/notification');
 const admin = require('firebase-admin');
 
+// Helper function to format time ago
+const timeAgo = (date) => {
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return `${seconds} seconds ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
 // Send a new message
 exports.sendMessage = async (req, res) => {
   const { recipientId, content } = req.body;
-  const senderId = req.user.userId; // From verifyToken middleware
+  const senderId = req.user.userId;
   const errors = {};
 
-  // Validate input
   if (!recipientId) errors.recipientId = 'Recipient ID is required';
   if (!content) errors.content = 'Message content is required';
   else if (content.length > 1000) errors.content = 'Message cannot exceed 1000 characters';
@@ -19,7 +32,6 @@ exports.sendMessage = async (req, res) => {
   }
 
   try {
-    // Verify sender and recipient exist
     const [sender, recipient] = await Promise.all([
       User.findById(senderId),
       User.findById(recipientId),
@@ -28,14 +40,12 @@ exports.sendMessage = async (req, res) => {
     if (!sender) return res.status(404).json({ errors: { senderId: 'Sender not found' } });
     if (!recipient) return res.status(404).json({ errors: { recipientId: 'Recipient not found' } });
 
-    // Create message
     const message = await Message.create({
       sender: senderId,
       recipient: recipientId,
       content,
     });
 
-    // Send FCM notification if recipient has notifications enabled and FCM token
     if (recipient.settings?.notifications && recipient.fcmToken) {
       const notificationMessage = {
         notification: {
@@ -76,7 +86,6 @@ exports.sendMessage = async (req, res) => {
         await admin.messaging().send(notificationMessage);
         console.log('FCM notification sent successfully');
 
-        // Store notification in database
         await Notification.create({
           user: recipientId,
           title: `New Message from ${sender.fullName}`,
@@ -139,7 +148,6 @@ exports.getMessages = async (req, res) => {
       .populate('sender', 'fullName userName')
       .populate('recipient', 'fullName userName');
 
-    // Mark unread messages as read
     await Message.updateMany(
       {
         sender: recipientId,
@@ -243,5 +251,129 @@ exports.deleteMessage = async (req, res) => {
   } catch (err) {
     console.error('Delete message error:', err.message);
     res.status(500).json({ msg: 'Failed to delete message', error: err.message });
+  }
+};
+
+// Get chat list with user details, message count, latest message time, and online status
+exports.getChatList = async (req, res) => {
+  const userId = req.user.userId;
+  const { page = 1, limit = 20 } = req.query;
+
+  try {
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Aggregate to find unique chat partners and their details
+    const chatList = await Message.aggregate([
+      // Match messages involving the user (as sender or recipient)
+      {
+        $match: {
+          $or: [
+            { sender: new mongoose.Types.ObjectId(userId) },
+            { recipient: new mongoose.Types.ObjectId(userId) },
+          ],
+          isDeleted: false,
+        },
+      },
+      // Group by chat partner to get latest message and count
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ['$sender', new mongoose.Types.ObjectId(userId)] },
+              '$recipient',
+              '$sender',
+            ],
+          },
+          latestMessage: { $max: '$createdAt' },
+          messageCount: { $sum: 1 },
+          latestMessageContent: { $last: '$content' },
+        },
+      },
+      // Lookup user details
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      // Unwind user array
+      { $unwind: '$user' },
+      // Project relevant fields
+      {
+        $project: {
+          userId: '$user._id',
+          fullName: '$user.fullName',
+          userName: '$user.userName',
+          profilePicture: '$user.profilePicture',
+          messageCount: 1,
+          latestMessage: 1,
+          latestMessageContent: 1,
+          isOnline: {
+            $gte: [
+              '$user.lastActive',
+              new Date(Date.now() - 5 * 60 * 1000), // Online if active in last 5 minutes
+            ],
+          },
+        },
+      },
+      // Sort by latest message
+      { $sort: { latestMessage: -1 } },
+      // Pagination
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+    ]);
+
+    // Format response with time ago
+    const formattedChatList = chatList.map((chat) => ({
+      userId: chat.userId,
+      fullName: chat.fullName,
+      userName: chat.userName,
+      profilePicture: chat.profilePicture,
+      messageCount: chat.messageCount,
+      latestMessage: chat.latestMessage,
+      latestMessageContent: chat.latestMessageContent,
+      timeAgo: timeAgo(chat.latestMessage),
+      isOnline: chat.isOnline,
+    }));
+
+    // Get total count for pagination
+    const totalChats = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: new mongoose.Types.ObjectId(userId) },
+            { recipient: new mongoose.Types.ObjectId(userId) },
+          ],
+          isDeleted: false,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ['$sender', new mongoose.Types.ObjectId(userId)] },
+              '$recipient',
+              '$sender',
+            ],
+          },
+        },
+      },
+      { $count: 'total' },
+    ]);
+
+    res.status(200).json({
+      msg: 'Chat list retrieved successfully',
+      chats: formattedChatList,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalChats.length > 0 ? totalChats[0].total : 0,
+      },
+    });
+  } catch (err) {
+    console.error('Get chat list error:', err.message);
+    res.status(500).json({ msg: 'Failed to retrieve chat list', error: err.message });
   }
 };

@@ -7,5 +7,6 @@ router.post('/send', verifyToken, chatController.sendMessage);
 router.get('/messages', verifyToken, chatController.getMessages);
 router.put('/message/:messageId', verifyToken, chatController.updateMessage);
 router.delete('/message/:messageId', verifyToken, chatController.deleteMessage);
+router.get('/list', verifyToken, chatController.getChatList);
 
 module.exports = router;
