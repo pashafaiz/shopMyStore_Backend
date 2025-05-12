@@ -427,7 +427,6 @@
 
 
 
-
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
@@ -998,15 +997,18 @@ exports.resetPassword = async (req, res) => {
   try {
     // Verify reset token
     const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password directly using findByIdAndUpdate to avoid pre-save hook
+    const user = await User.findByIdAndUpdate(
+      decoded.userId,
+      { $set: { password: hashedPassword } },
+      { new: true }
+    );
 
     if (!user) {
       return res.status(404).json({ msg: 'User not found' });
     }
-
-    // Update password
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
 
     res.status(200).json({ msg: 'Password reset successfully' });
 
