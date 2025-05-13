@@ -13,6 +13,8 @@ const supportRoutes = require('./routes/supportRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const chatRoutes = require('./routes/chatRoutes')
+const promoRouter = require('./routes/promoRouter');
+
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
@@ -24,5 +26,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/promo-codes', promoRouter);
+
 
 module.exports = app;

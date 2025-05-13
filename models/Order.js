@@ -19,7 +19,7 @@ const orderSchema = new mongoose.Schema(
       required: true,
       enum: ['credit_card', 'upi', 'net_banking', 'wallet', 'cod'],
     },
-    promoCode: { type: String },
+    promoCode: { type: String, default: null },
     discount: { type: Number, default: 0 },
     subtotal: { type: Number, required: true },
     shipping: { type: Number, required: true },
@@ -30,6 +30,9 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
       default: 'pending',
     },
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
   },
   { timestamps: true }
 );

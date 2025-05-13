@@ -2,6 +2,13 @@ const Product = require('../models/Product');
 const Address = require('../models/Address');
 const PromoCode = require('../models/PromoCode');
 const Order = require('../models/Order');
+const Razorpay = require('razorpay');
+require('dotenv').config();
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // Fetch all orders for the authenticated user
 exports.getOrders = async (req, res) => {
@@ -114,7 +121,7 @@ exports.deleteAddress = async (req, res) => {
   }
 };
 
-// Validate promo code (optional)
+// Validate promo code
 exports.validatePromoCode = async (req, res) => {
   const { code } = req.body;
 
@@ -142,6 +149,36 @@ exports.validatePromoCode = async (req, res) => {
   }
 };
 
+// Create Razorpay order
+exports.createRazorpayOrder = async (req, res) => {
+  const { amount, currency = 'INR' } = req.body;
+
+  try {
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ msg: 'Invalid amount' });
+    }
+
+    const options = {
+      amount: Math.round(amount * 100), // Razorpay expects amount in paise
+      currency,
+      receipt: `receipt_${Date.now()}`,
+    };
+
+    const razorpayOrder = await razorpay.orders.create(options);
+    res.status(200).json({
+      msg: 'Razorpay order created successfully',
+      order: {
+        id: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+      },
+    });
+  } catch (err) {
+    console.error('Create Razorpay order error:', err);
+    res.status(500).json({ msg: 'Failed to create Razorpay order', error: err.message });
+  }
+};
+
 // Place order
 exports.placeOrder = async (req, res) => {
   const userId = req.user.userId;
@@ -154,6 +191,9 @@ exports.placeOrder = async (req, res) => {
     paymentMethod,
     promoCode,
     total,
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
   } = req.body;
   const errors = {};
 
@@ -170,6 +210,10 @@ exports.placeOrder = async (req, res) => {
   }
   if (!total || total < 0) errors.total = 'Total must be a positive number';
 
+  if (paymentMethod !== 'cod' && (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature)) {
+    errors.razorpay = 'Razorpay payment details are required for online payments';
+  }
+
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ errors });
   }
@@ -183,8 +227,11 @@ exports.placeOrder = async (req, res) => {
     let discount = 0;
     if (promoCode) {
       const promo = await PromoCode.findOne({ code: promoCode.toUpperCase(), isActive: true });
-      if (!promo || (promo.expiresAt && promo.expiresAt < new Date())) {
-        return res.status(400).json({ msg: 'Invalid or expired promo code' });
+      if (!promo) {
+        return res.status(400).json({ msg: 'Invalid promo code' });
+      }
+      if (promo.expiresAt && promo.expiresAt < new Date()) {
+        return res.status(400).json({ msg: 'Promo code has expired' });
       }
       discount = promo.discount;
     }
@@ -196,7 +243,33 @@ exports.placeOrder = async (req, res) => {
     const calculatedTotal = (subtotal + shipping + tax - discountAmount).toFixed(2);
 
     if (parseFloat(total).toFixed(2) !== calculatedTotal) {
+      console.log('Total mismatch details:', {
+        providedTotal: total,
+        calculatedTotal,
+        subtotal,
+        shipping,
+        tax,
+        discount,
+        discountAmount,
+      });
       return res.status(400).json({ msg: 'Total mismatch' });
+    }
+
+    // For online payments, verify Razorpay payment
+    if (paymentMethod !== 'cod') {
+      const crypto = require('crypto');
+      const generatedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest('hex');
+
+      if (generatedSignature !== razorpaySignature) {
+        console.log('Razorpay signature verification failed:', {
+          generatedSignature,
+          providedSignature: razorpaySignature,
+        });
+        return res.status(400).json({ msg: 'Invalid Razorpay payment signature' });
+      }
     }
 
     const order = await Order.create({
@@ -207,12 +280,15 @@ exports.placeOrder = async (req, res) => {
       color,
       address,
       paymentMethod,
-      promoCode,
+      promoCode: promoCode || null,
       discount,
       subtotal,
       shipping,
       tax,
       total: calculatedTotal,
+      razorpayOrderId: paymentMethod !== 'cod' ? razorpayOrderId : null,
+      razorpayPaymentId: paymentMethod !== 'cod' ? razorpayPaymentId : null,
+      razorpaySignature: paymentMethod !== 'cod' ? razorpaySignature : null, // Save the signature
     });
 
     res.status(201).json({
@@ -224,6 +300,9 @@ exports.placeOrder = async (req, res) => {
         quantity: order.quantity,
         total: order.total,
         status: order.status,
+        razorpayOrderId: order.razorpayOrderId,
+        razorpayPaymentId: order.razorpayPaymentId,
+        razorpaySignature: order.razorpaySignature, // Include signature in response
       },
     });
   } catch (err) {

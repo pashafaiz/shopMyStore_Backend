@@ -9,6 +9,7 @@ router.get('/addresses', verifyToken, orderController.getAddresses);
 router.post('/addresses', verifyToken, orderController.addAddress);
 router.delete('/addresses/:id', verifyToken, orderController.deleteAddress);
 router.post('/promo-codes/validate', verifyToken, orderController.validatePromoCode);
+router.post('/create-razorpay-order', verifyToken, orderController.createRazorpayOrder);
 router.post('/', verifyToken, orderController.placeOrder);
 
 module.exports = router;
