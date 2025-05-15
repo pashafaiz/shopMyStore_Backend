@@ -1,4 +1,3 @@
-
 const jwt = require('jsonwebtoken');
 
 exports.verifyToken = (req, res, next) => {
@@ -15,6 +14,12 @@ exports.verifyToken = (req, res, next) => {
     req.user = decoded; // Attach decoded token to request
     next();
   } catch (err) {
+    console.error('Token verification failed:', err.message); // Log for monitoring
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ msg: 'Token has expired, please log in again' });
+    }
     return res.status(401).json({ msg: 'Token is not valid', error: err.message });
   }
 };
+
+module.exports = exports;

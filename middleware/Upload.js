@@ -1,4 +1,3 @@
-
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -11,25 +10,18 @@ const storage = new CloudinaryStorage({
       folder: isVideo ? 'product_videos' : 'product_images',
       resource_type: isVideo ? 'video' : 'image',
       public_id: `shopmystore_${Date.now()}_${file.originalname}`,
-      transformation: isVideo
-        ? [{ quality: 'auto:best', fetch_format: 'mp4', video_codec: 'h264' }]
-        : [{ quality: 'auto', fetch_format: 'auto' }],
+      // No quality transformations to preserve original quality
+      transformation: isVideo ? [] : [{ fetch_format: 'auto' }], // Only format optimization for images
     };
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = [
-    'image/jpeg',
-    'image/png',
-    'video/mp4',
-    'video/quicktime',
-    'video/x-matroska',
-  ];
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  // Allow any image or video MIME type supported by Cloudinary
+  if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPEG, PNG, MP4, MOV, and MKV files are allowed!'), false);
+    cb(new Error('Only image and video files are allowed!'), false);
   }
 };
 
@@ -37,8 +29,8 @@ const Upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 60 * 1024 * 1024, // 60MB per file
-    files: 5, // Max 5 files
+    fileSize: 200 * 1024 * 1024, // 200MB per file to support high-quality media
+    files: 10, // Max 10 files
   },
 });
 

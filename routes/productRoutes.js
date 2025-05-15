@@ -1,70 +1,3 @@
-
-// // const express = require('express');
-// // const router = express.Router();
-// // const productController = require('../controllers/productController');
-// // const authController = require('../controllers/authController');
-// // const { check } = require('express-validator');
-// // const upload = require('../middleware/Upload');
-
-// // // Validation rules
-// // const productValidation = [
-// //   check('name', 'Name is required').not().isEmpty(),
-// //   check('description', 'Description is required').not().isEmpty(),
-// //   check('price', 'Price must be a positive number').isFloat({ min: 0 }),
-// //   check('category', 'Category is required').not().isEmpty(),
-// // ];
-
-// // router.get('/category/:category', productController.getProductsByCategory);
-
-
-// // // @route   POST api/products
-// // // @desc    Create a product
-// // // @access  Private
-// // router.post(
-// //   '/',
-// //   authController.verifyToken,
-// //   upload.array('media', 5),
-// //   productValidation,
-// //   productController.createProduct
-// // );
-
-// // // @route   GET api/products
-// // // @desc    Get all products
-// // // @access  Public
-// // router.get('/', productController.getAllProducts);
-
-// // // @route   GET api/products/:id
-// // // @desc    Get single product
-// // // @access  Public
-// // router.get('/:id', productController.getProduct);
-
-// // // @route   PUT api/products/:id
-// // // @desc    Update a product
-// // // @access  Private
-// // router.put(
-// //   '/:id',
-// //   authController.verifyToken,
-// //   upload.array('media', 5), // Changed to support multiple media
-// //   productValidation,
-// //   productController.updateProduct
-// // );
-
-// // // @route   DELETE api/products/:id
-// // // @desc    Delete a product
-// // // @access  Private
-// // router.delete('/:id', authController.verifyToken, productController.deleteProduct);
-
-// // // @route   GET api/products/:id/related
-// // // @desc    Get related products
-// // // @access  Public
-// // router.get('/:id/related', productController.getRelatedProducts);
-
-// // module.exports = router;
-
-
-
-
-
 // const express = require('express');
 // const router = express.Router();
 // const productController = require('../controllers/productController');
@@ -80,68 +13,11 @@
 //   check('category', 'Category is required').not().isEmpty(),
 // ];
 
-// const cartValidation = [
+// const reviewValidation = [
 //   check('productId', 'Product ID is required').not().isEmpty(),
+//   check('rating', 'Rating must be between 1 and 5').isInt({ min: 1, max: 5 }),
+//   check('comment', 'Comment is required').not().isEmpty(),
 // ];
-
-// // @route   POST api/products/cart
-// // @desc    Add product to cart
-// // @access  Private
-// router.post(
-//   '/cart/:productId',  // Changed from '/cart'
-//   authController.verifyToken,
-//   productController.addToCart
-// );
-
-// // @route   GET api/products/cart
-// // @desc    Get user's cart
-// // @access  Private
-// router.get(
-//   '/cart',
-//   authController.verifyToken,
-//   productController.getCart
-// );
-
-// // @route   DELETE api/products/cart/:productId
-// // @desc    Remove product from cart
-// // @access  Private
-// router.delete(
-//   '/cart/:productId',
-//   authController.verifyToken,
-//   productController.removeFromCart
-// );
-
-// // @route   POST api/products/wishlist/:productId
-// // @desc    Toggle product in wishlist
-// // @access  Private
-// router.post(
-//   '/wishlist/:productId',
-//   authController.verifyToken,
-//   productController.toggleWishlist
-// );
-
-// // @route   GET api/products/wishlist
-// // @desc    Get user's wishlist
-// // @access  Private
-// router.get(
-//   '/wishlist',
-//   authController.verifyToken,
-//   productController.getWishlist
-// );
-
-// // @route   DELETE api/products/wishlist/:productId
-// // @desc    Remove product from wishlist
-// // @access  Private
-// router.delete(
-//   '/wishlist/:productId',
-//   authController.verifyToken,
-//   productController.removeFromWishlist
-// );
-
-// // @route   GET api/products/category/:category
-// // @desc    Get products by category
-// // @access  Public
-// router.get('/category/:category', productController.getProductsByCategory);
 
 // // @route   POST api/products
 // // @desc    Create a product
@@ -158,6 +34,16 @@
 // // @desc    Get all products
 // // @access  Public
 // router.get('/', productController.getAllProducts);
+
+// // @route   GET api/products/cart
+// // @desc    Get user's cart
+// // @access  Private
+// router.get('/cart', authController.verifyToken, productController.getCart);
+
+// // @route   GET api/products/wishlist
+// // @desc    Get user's wishlist
+// // @access  Private
+// router.get('/wishlist', authController.verifyToken, productController.getWishlist);
 
 // // @route   GET api/products/:id
 // // @desc    Get single product
@@ -185,7 +71,48 @@
 // // @access  Public
 // router.get('/:id/related', productController.getRelatedProducts);
 
+// // @route   GET api/products/category/:category
+// // @desc    Get products by category
+// // @access  Public
+// router.get('/category/:category', productController.getProductsByCategory);
+
+// // @route   POST api/products/cart/:productId
+// // @desc    Add product to cart
+// // @access  Private
+// router.post('/cart/:productId', authController.verifyToken, productController.addToCart);
+
+// // @route   DELETE api/products/cart/:productId
+// // @desc    Remove product from cart
+// // @access  Private
+// router.delete('/cart/:productId', authController.verifyToken, productController.removeFromCart);
+
+// // @route   POST api/products/wishlist/:productId
+// // @desc    Toggle product in wishlist
+// // @access  Private
+// router.post('/wishlist/:productId', authController.verifyToken, productController.toggleWishlist);
+
+// // @route   DELETE api/products/wishlist/:productId
+// // @desc    Remove product from wishlist
+// // @access  Private
+// router.delete('/wishlist/:productId', authController.verifyToken, productController.removeFromWishlist);
+
+// // @route   POST api/products/reviews
+// // @desc    Create a review
+// // @access  Private
+// router.post('/reviews', authController.verifyToken, reviewValidation, productController.createReview);
+
+// // @route   GET api/products/reviews/:productId
+// // @desc    Get reviews for a product
+// // @access  Public
+// router.get('/reviews/:productId', productController.getProductReviews);
+
+// // @route   DELETE api/products/reviews/:reviewId
+// // @desc    Delete a review
+// // @access  Private
+// router.delete('/reviews/:reviewId', authController.verifyToken, productController.deleteReview);
+
 // module.exports = router;
+
 
 
 
@@ -203,6 +130,8 @@ const productValidation = [
   check('description', 'Description is required').not().isEmpty(),
   check('price', 'Price must be a positive number').isFloat({ min: 0 }),
   check('category', 'Category is required').not().isEmpty(),
+  check('stock', 'Stock must be a non-negative number').isInt({ min: 0 }),
+  check('brand', 'Brand is required').not().isEmpty(),
 ];
 
 const reviewValidation = [
@@ -217,7 +146,7 @@ const reviewValidation = [
 router.post(
   '/',
   authController.verifyToken,
-  upload.array('media', 5),
+  upload.array('media', 10), // Increased to 10
   productValidation,
   productController.createProduct
 );
@@ -248,7 +177,7 @@ router.get('/:id', productController.getProduct);
 router.put(
   '/:id',
   authController.verifyToken,
-  upload.array('media', 5),
+  upload.array('media', 10), // Increased to 10
   productValidation,
   productController.updateProduct
 );
@@ -294,7 +223,7 @@ router.delete('/wishlist/:productId', authController.verifyToken, productControl
 router.post('/reviews', authController.verifyToken, reviewValidation, productController.createReview);
 
 // @route   GET api/products/reviews/:productId
-// @desc    Get reviews for a product
+// @desc    Get product reviews
 // @access  Public
 router.get('/reviews/:productId', productController.getProductReviews);
 
