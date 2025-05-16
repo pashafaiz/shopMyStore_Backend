@@ -105,6 +105,8 @@
 
 
 
+
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -175,6 +177,30 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    sellerStats: {
+      totalSales: { type: Number, default: 0 },
+      totalRevenue: { type: Number, default: 0 },
+      totalOrders: { type: Number, default: 0 },
+      averageRating: { type: Number, default: 0 },
+    },
+    notifications: [
+      {
+        type: { type: String, enum: ['order', 'low_stock', 'support', 'promo'], required: true },
+        message: { type: String, required: true },
+        isRead: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    supportTickets: [
+      {
+        ticketId: { type: String, required: true },
+        customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        subject: { type: String, required: true },
+        message: { type: String, required: true },
+        status: { type: String, enum: ['open', 'in_progress', 'closed'], default: 'open' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -206,5 +232,6 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.index({ userName: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ phoneNumber: 1 });
+userSchema.index({ 'supportTickets.ticketId': 1 });
 
 module.exports = mongoose.model('User', userSchema);
