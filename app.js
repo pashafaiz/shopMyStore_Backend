@@ -14,6 +14,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const chatRoutes = require('./routes/chatRoutes')
 const promoRouter = require('./routes/promoRouter');
+const sellerRoutes  = require('./routes/sellerRoutes')
 
 
 app.use(express.json());
@@ -27,6 +28,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/promo-codes', promoRouter);
+app.use('/api/seller',sellerRoutes);
 
 
 module.exports = app;

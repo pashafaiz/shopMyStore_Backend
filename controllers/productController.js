@@ -82,9 +82,20 @@ exports.createProduct = async (req, res) => {
 // =================== GET ALL PRODUCTS (GET) ===================
 exports.getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 }).populate('createdBy', 'userName email');
-    console.log('Get all products:', { count: products.length });
+    // const products = await Product.find().sort({ createdAt: -1 }).populate('createdBy', 'userName email');
+  const products = await Product.find(query)
+      .sort({ createdAt: -1 })
+      .populate('createdBy', 'userName email');
 
+
+     const { sellerId } = req.query;
+    let query = {};
+    
+    if (sellerId) {
+      query.createdBy = sellerId;
+    }
+
+  
     res.status(200).json({
       count: products.length,
       products: products.map((product) => ({
