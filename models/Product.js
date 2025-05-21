@@ -32,6 +32,11 @@ const productSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+    orders: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: []
+  }],
   media: [
     {
       url: {
