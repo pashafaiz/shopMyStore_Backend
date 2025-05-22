@@ -201,7 +201,7 @@ exports.updateProduct = async (req, res) => {
     let product = await Product.findById(req.params.id);
 
     if (!product) {
-      return res.status(404).json({ msg: 'Product not found' });
+      return res.status(404).json({ msg: 'Product not found' })
     }
 
     if (product.createdBy.toString() !== req.user.userId) {
