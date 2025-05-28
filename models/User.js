@@ -1,11 +1,9 @@
-
-
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
-    userType: { type: String, required: true, enum: ['seller', 'customer'] },
+    userType: { type: String, required: true, enum: ["seller", "customer"] },
     fullName: { type: String, required: true },
     userName: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true, lowercase: true },
@@ -15,43 +13,44 @@ const userSchema = new mongoose.Schema(
     otpExpires: { type: Date },
     profilePicture: {
       type: String,
-      default: 'https://res.cloudinary.com/your-cloud-name/image/upload/v1620000000/default-profile.png',
+      default:
+        "https://res.cloudinary.com/your-cloud-name/image/upload/v1620000000/default-profile.png",
     },
     bio: { type: String, maxlength: 150 },
     products: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: "Product",
       },
     ],
     reels: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Reel',
+        ref: "Reel",
       },
     ],
     followers: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: "User",
       },
     ],
     following: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: "User",
       },
     ],
     cart: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: "Product",
       },
     ],
     wishlist: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: "Product",
       },
     ],
     isVerified: { type: Boolean, default: false },
@@ -70,6 +69,35 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    // Seller specific fields
+    businessName: { type: String },
+    gstNumber: { type: String },
+    panNumber: { type: String },
+    bankDetails: {
+      accountHolderName: { type: String },
+      accountNumber: { type: String },
+      bankName: { type: String },
+      ifscCode: { type: String },
+      branch: { type: String },
+    },
+    businessAddress: {
+      street: { type: String },
+      city: { type: String },
+      state: { type: String },
+      postalCode: { type: String },
+      country: { type: String, default: "India" },
+    },
+    businessDescription: { type: String },
+    businessCategory: { type: String },
+    businessLogo: { type: String },
+    businessDocuments: [
+      {
+        documentType: { type: String },
+        documentUrl: { type: String },
+      },
+    ],
+    isSellerVerified: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -86,8 +114,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (this.isModified('password')) {
+userSchema.pre("save", async function (next) {
+  if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 10);
   }
   next();
@@ -102,4 +130,4 @@ userSchema.index({ userName: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ phoneNumber: 1 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);

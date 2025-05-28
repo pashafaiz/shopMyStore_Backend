@@ -677,20 +677,19 @@ exports.login = async (req, res) => {
     );
 
     // Include userType in the response
-    const { _id, fullName, userName, email: userEmail, phoneNumber, userType } = user;
+    // const { _id, fullName, userName, email: userEmail, phoneNumber, userType } = user;
 
-    res.status(200).json({
-      msg: 'Login successful',
-      token,
-      user: { 
-        id: _id, 
-        userType,
-        fullName, 
-        userName, 
-        email: userEmail, 
-        phoneNumber 
-      }
-    });
+    const userResponse = user.toObject();
+  delete userResponse.password;
+  delete userResponse.Otp;
+  delete userResponse.otpExpires;
+  delete userResponse.__v;
+
+  res.status(200).json({
+    msg: 'Login successful',
+    token,
+    user: userResponse
+  });
 
   } catch (err) {
     console.error("Login error:", err);
@@ -1019,6 +1018,219 @@ exports.resetPassword = async (req, res) => {
     }
     res.status(500).json({ 
       msg: 'Failed to reset password', 
+      error: err.message
+    });
+  }
+};
+
+
+
+
+// =================== SELECT ROLE ===================
+exports.selectRole = async (req, res) => {
+  const { email, userType } = req.body;
+  const errors = {};
+
+  // Validations
+  if (!email) {
+    errors.email = 'Email is required';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Please enter a valid email address';
+  }
+  if (!userType) {
+    errors.userType = 'User type is required';
+  } else if (!['seller', 'customer'].includes(userType)) {
+    errors.userType = 'Invalid user type';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
+  try {
+    // Check if email already exists in User collection
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ errors: { email: 'Email already in use' } });
+    }
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save to pending user
+    const pendingUser = await PendingUser.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { 
+        email: email.toLowerCase(),
+        userType,
+        otp,
+        otpExpires
+      },
+      { upsert: true, new: true }
+    );
+
+    // Send OTP email
+    const mailOptions = {
+      from: `"ShopMyStore" <${process.env.EMAIL_USER}>`,
+      to: email.toLowerCase(),
+      subject: `ShopMyStore OTP Verification Code`,
+      html: `
+        <div style="font-family: Arial, sans-serif;">
+          <h1 style="color:rgb(245, 71, 88);">ShopMyStore</h1>
+          <h2>Your OTP is: <strong>${otp}</strong></h2>
+          <p>This OTP is valid for <strong>10 minutes</strong>.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ 
+      msg: 'OTP sent to your email. Please verify to continue.',
+      email: pendingUser.email,
+      userType: pendingUser.userType
+    });
+
+  } catch (err) {
+    console.error("Select role error:", err);
+    res.status(500).json({ 
+      msg: 'Failed to select role', 
+      error: err.message
+    });
+  }
+};
+
+// =================== SELLER SIGNUP ===================
+exports.sellerSignup = async (req, res) => {
+  const { 
+    email, 
+    otp,
+    fullName, 
+    userName, 
+    phoneNumber, 
+    password, 
+    confirmPassword,
+    businessName,
+    gstNumber,
+    panNumber,
+    bankDetails,
+    businessAddress
+  } = req.body;
+
+  const errors = {};
+
+  // Validations
+  if (!email) errors.email = 'Email is required';
+  if (!otp) errors.otp = 'OTP is required';
+  if (!fullName) errors.fullName = 'Full Name is required';
+  if (!userName) {
+    errors.userName = 'Username is required';
+  } else if (!/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{3,15}$/.test(userName)) {
+    errors.userName = 'Username must be 3-15 characters, contain at least one letter and one number';
+  }
+  if (!phoneNumber) {
+    errors.phoneNumber = 'Phone Number is required';
+  } else if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
+    errors.phoneNumber = 'Invalid Indian phone number';
+  }
+  if (!password) {
+    errors.password = 'Password is required';
+  } else if (!/(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}/.test(password)) {
+    errors.password = 'Password must be at least 8 characters, include a number, a letter, and a special character';
+  }
+  if (!confirmPassword) {
+    errors.confirmPassword = 'Confirm Password is required';
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = 'Passwords do not match';
+  }
+  if (!businessName) errors.businessName = 'Business name is required';
+  if (!gstNumber) errors.gstNumber = 'GST number is required';
+  if (!panNumber) errors.panNumber = 'PAN number is required';
+  if (!bankDetails || !bankDetails.accountNumber || !bankDetails.ifscCode) {
+    errors.bankDetails = 'Bank details are incomplete';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
+  try {
+    // Verify OTP and get pending user
+    const pendingUser = await PendingUser.findOne({ 
+      email: email.toLowerCase(),
+      otp,
+      userType: 'seller'
+    });
+
+    if (!pendingUser) {
+      return res.status(400).json({ errors: { otp: 'Invalid OTP or email' } });
+    }
+
+    if (pendingUser.otpExpires < new Date()) {
+      await PendingUser.deleteOne({ _id: pendingUser._id });
+      return res.status(400).json({ errors: { otp: 'OTP has expired. Please start again' } });
+    }
+
+    // Check if username exists
+    const existingUsername = await User.findOne({ 
+      userName: { $regex: new RegExp(`^${userName}$`, 'i') } 
+    });
+    
+    if (existingUsername) {
+      return res.status(400).json({ errors: { userName: 'Username already taken' } });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create seller user
+    const userData = {
+      userType: 'seller',
+      fullName,
+      userName: userName.toLowerCase(),
+      email: email.toLowerCase(),
+      phoneNumber,
+      password: hashedPassword,
+      businessName,
+      gstNumber,
+      panNumber,
+      bankDetails,
+      businessAddress
+    };
+
+    const user = await User.create(userData);
+    await PendingUser.deleteOne({ _id: pendingUser._id });
+
+    // Generate token
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        email: user.email,
+        userType: user.userType
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '2d' }
+    );
+
+    // Return complete user data
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    delete userResponse.Otp;
+    delete userResponse.otpExpires;
+    delete userResponse.__v;
+
+    res.status(201).json({
+      msg: 'Seller account created successfully',
+      token,
+      user: userResponse
+    });
+
+  } catch (err) {
+    console.error("Seller signup error:", err);
+    res.status(500).json({ 
+      msg: 'Failed to create seller account', 
       error: err.message
     });
   }

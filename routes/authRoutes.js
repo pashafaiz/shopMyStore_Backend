@@ -32,5 +32,7 @@ router.get('/user/:id', verifyToken, authController.getCompleteUserProfile);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/verify-password-reset-otp', authController.verifyPasswordResetOtp);
 router.post('/reset-password', authController.resetPassword);
+router.post('/select-role', authController.selectRole);
+router.post('/seller-signup', authController.sellerSignup);
 
 module.exports = router;
